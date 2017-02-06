@@ -1,0 +1,77 @@
+library(RODBC)
+library(sp)
+library(plyr)
+library(geosphere)
+
+odbcDataSources(type = c("all", "user", "system"))
+channel <- odbcDriverConnect("driver=SQL Server;server=01wh155073")
+connect_1 <- odbcConnect("Hive_DB")
+
+test<-sqlQuery(connect_1,'SET mapred.job.queue.name=adhoc')
+test
+
+sample <-sqlQuery(connect_1,'SELECT a.vendor_tracking_id,
+a.tasklist_id,
+a.latitude,
+a.longitude,
+c.name as Hub_name,
+c.city,
+a.Vehicle_type,
+d.name as FE_Name,
+to_date(a.tasklist_created_date_time) as tasklist_create_date,
+a.vehicle_and_date
+
+FROM bigfoot_external_neo.scp_ekl__runsheet_shipment_map_l1_fact AS a Left outer JOIN bigfoot_external_neo.scp_ekl__ekl_hive_facility_dim AS c 
+                      ON a.facility_id = c.facility_id
+left outer join bigfoot_external_neo.scp_ekl__agent_hive_dim as d
+                      ON a.primary_agent_id = d.agent_id
+
+                      WHERE a.tasklist_created_date_time BETWEEN "2016-06-01 00:00:00" AND "2016-06-30 23:59:59" and upper(c.type) = "DELIVERY_HUB" and UPPER(a.shipment_type) IN ("FORWARD") and lower(c.city) IN ("delhi","new delhi","new delhi") and a.shipment_actioned_flag = 1 and UPPER(a.tasklist_type) = "RUNSHEET"')
+colnames(sample)<- c("vendor_tracking_id","tasklist_id","latitude","longitude","hub_name","city","vehicle_type","fe_name","tasklist_create_date","vehicle_and_date")
+write.csv(sample,"Delhi June geo.csv")
+
+  ######################################################################
+################# Running K-Means Clustering Algorithm ###############
+######################################################################
+#sample<-read.csv("Bangalore March geo.csv")
+#Replacing 0s and blanks with NA and removing them
+data<-sample[1:9]
+van<-sample[,c(1,2,10)]
+data[,3:4][data[,3:4] <= 0] <- NA
+datam1<-data[complete.cases(data),]
+datam<-merge(datam1,van)
+#taking 0.001 percentil to 0.999 percentile
+data2<-datam[(quantile(datam$latitude, 0.001)< datam$latitude & datam$latitude < quantile(datam$latitude, 0.999)), ]
+summary(data2$latitude)
+summary(data2$longitude)
+#scaling for only lat long data
+data1<-data2[,3:4]
+df=scale(data1)
+
+#do the K means clustering
+set.seed = 20
+fit.km <- kmeans(df, 500, nstart=20,iter.max=30)
+fit.km
+t<-aggregate(data1, by=list(cluster=fit.km$cluster), mean)
+
+#Adding clusters and centroid to original file
+mydata <- data.frame(data2, cluster = fit.km$cluster)
+colnames(t)[c(2:3)] <- c("cluster_lat","cluster_long")
+mydata2<-merge(mydata, t)
+
+#Distance from centroid to Point
+mydata2$distance<-distHaversine(mydata2[, 5:4], mydata2[, 13:12])
+write.csv(mydata2,"Geo June Delhi 500.csv")
+head(mydata2)
+#cluster summary file
+mydata3<- ddply(mydata2, .(cluster,cluster_lat,cluster_long), summarise, volume = length(cluster), avgdist = mean(distance),mindist = min(distance),maxdist = max(distance),No_of_hubs= length(unique(hub_name)))
+Hub<- ddply(mydata2, .(cluster,hub_name), summarise, volume = length(cluster))
+x<-ddply(Hub,.(cluster),transform,rank =order(volume,decreasing=T))
+x2<- x[x$rank ==1,c(1,2)]
+cluster<-merge(mydata3,x2)
+hub_geo<-read.csv("Hub geo.csv")
+hub_geo1<-hub_geo[,3:5]
+cluster1<-merge(cluster,hub_geo1, by = "hub_name", all.x = TRUE)
+cluster1$Hub_distance<-distHaversine(cluster1[, 4:3], cluster1[, 11:10])
+write.csv(cluster1,"Geo June Delhi 500 cluster_info.csv")
+############################################################

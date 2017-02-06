@@ -1,0 +1,43 @@
+#ui.R file for cluster Project
+library(shiny)
+shinyUI(pageWithSidebar(
+  
+  headerPanel("Cluster Productivity tracker"),
+  
+  sidebarPanel(
+    
+checkboxGroupInput("id1","Choose Zone : ",c("East" ="East", "North"="North", "South"="South", "West" ="West" ),selected="East"),
+
+radioButtons("id2", "min shipments", c("VD,>100"=">100","D,>70"=">70","D,>50"=">50","Non CLuster"="<50"), selected = NULL, inline = FALSE,width = NULL),
+
+checkboxGroupInput("id3","Choose Weekday or Sunday : ",c("Weekday" ="Rest days", "Sunday"="Sunday"),selected=NULL),
+   
+submitButton('Submit')
+),
+mainPanel(
+
+  plotOutput('newPlot'))))
+###########################################################################################################
+#server.R file for cluster project
+library(shiny)
+library(data.table)
+library(dplyr)
+di<-"D:/Cluster_tracker/Prod tracker/files/"
+names <- dir("D:/Cluster_tracker/Prod tracker/files") #where you have your 
+names1<-paste0(di,names)
+prod <- do.call(rbind,lapply(names1,read.csv))
+prod$flag<- ifelse(prod$Total_delivered>100,">100",ifelse(prod$Total_delivered>70,">70",ifelse(prod$Total_delivered>50,">50","<50")))
+weekdays1 <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday','Saturday')
+prod$weekday_flag<- factor((weekdays(as.Date(as.character(prod$tasklist_create_date),"%Y-%m-%d")) %in% weekdays1),levels=c(FALSE, TRUE), labels=c('Sunday', 'Rest days'))
+
+shinyServer(
+  function(input,output) {
+    output$newPlot<-renderPlot({
+      s1<-prod[(prod$Zone %in% input$id1 & prod$flag == input$id2 & prod$weekday_flag == input$id3),]
+      
+      s2<-aggregate(s1$Cluster, by = list(s1$tasklist_create_date), FUN = length)
+      names(s2)<-c("Date","Number_of_clusters")
+      plot(s2$Date,s2$Number_of_clusters,main = "Date wise clusters", xlab ="Date",ylab ="Number_of_clusters",type = 'b',col="blue")
+      lines(s2$Date,s2$Number_of_clusters,col="blue")
+      text(s2$Date,s2$Number_of_clusters, s2$Number_of_clusters,cex=1, adj=1,pos=3)
+    })})

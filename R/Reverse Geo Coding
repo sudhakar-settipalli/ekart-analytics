@@ -1,0 +1,62 @@
+library(RCurl)
+library(RJSONIO)
+library(plyr)
+url1 <- function(lat,long, key = "0e41de65-d2c5-4ebd-9cfb-a552dae27f3e") {
+  #root <- "http://maps-internal.nm.flipkart.com/api/v1/nearby_map_data"
+  root<-"http://fms-sage-app.vip.nm.flipkart.com:8888/nearby_map_data"
+  u <- paste(root,  "?point=",lat,",",long,"&max_dist=0.05", "&key=",key, sep = "")
+  return(URLencode(u))
+}
+
+revgeo <-function(lat,long,verbose=FALSE) {
+  if(verbose) cat(address,"\n")
+  u<-url1(lat,long)
+  doc <- getURL(u,referer = "http://analytics.flipkart.com",verbose = TRUE)
+  x <- fromJSON(doc,simplify = FALSE)
+  if(length(x$results)>0){
+    for (i in 1:length(x$results))
+    {
+      if(x$results[[1]]$address_components[[i]]$DOCTYPE=="Poi_point"){
+        #formatted_address <- x$results[[1]]$formatted_address
+        POI<-x$results[[1]]$address_components[[i]]$NAME
+        #df<-data.frame(formatted_address,POI)
+      }
+      else 
+        POI = "NAN"
+    }
+    return(POI)
+    Sys.sleep(0.02)
+  }
+  else {return(NA)}
+}
+
+revgeo(12.984193, 77.735465)
+u<-url1(12.95716751,77.70854547)
+u
+doc <- getURL(u,referer = "http://analytics.flipkart.com",verbose = TRUE)
+doc
+x1 <- fromJSON(doc,simplifyDataFrame = FALSE)
+x1
+
+x1$results[[1]]$address_components[[1]]$DOCTYPE
+require(jsonlite)
+dat <- fromJSON(doc)
+dat
+
+dat$results$Poi_point
+t<-revgeo(13.04981,85.42459)
+t
+#u<-url1(12.98248, 77.73746)
+revgeo(13.12975836,77.35095451)
+#doc
+cluster1<-read.csv("Geo apr Blore 500 cluster_info new.csv")
+geo<-cluster1[2:13]
+View(geo)
+geo$Add <- as.vector(apply(geo, 1, function(x) revgeo(x[3], x[4]) ))
+my.df <- data.frame(lapply(geo, as.character), stringsAsFactors=FALSE)
+write.csv(my.df,"Blore 500 apr clusters POI new.csv")
+t1<-apply(geo, 1, function(x) revgeo(x[3], x[4]) )
+h1<-as.data.frame(t1)
+h <- (as.data.frame(apply(geo, 1, function(x) revgeo(x[4], x[5]) )))
+mydat <- data.frame(geo,(b))
+b1<-as.data.frame(b)

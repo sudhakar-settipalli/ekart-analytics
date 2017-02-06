@@ -1,0 +1,44 @@
+library(RCurl)
+library(RJSONIO)
+library(plyr)
+library(stringr)
+d<-read.csv("geocoded_airporthub_addresses.csv")
+View(address)
+address<- d
+address
+gsub("#,", "",address)
+#Preparing URL
+url <- function(address_line1,address_line2,address_city,address_state, address_pincode,key = "0e41de65-d2c5-4ebd-9cfb-a552dae27f3e")
+  {
+  root <- "http://maps-internal.nm.flipkart.com/api/v1/geocode"
+  u <- paste(root, "?addr1=", address_line1,"&addr2=", address_line2,"&city=",address_city,"&state=",address_state,"&pincode=",address_pincode,"&key=",key, sep = "")
+  u1<-gsub("#","",u)
+  return(URLencode(u1))
+}
+
+#address ="doopanahalli"
+#API call to get Geo code
+#options(error=recover)
+geoCode("Soft Corner, Purva Riviera Apartments Commercial Complex, Marathahalli, Varthur Road, Bangalore - 560037","","","","")
+geoCode <-function(address_line1,address_line2,address_city,address_state, address_pincode,verbose=TRUE) {
+  #if(verbose) cat(address,"\n")
+  u<-url(address_line1,address_line2,address_city,address_state, address_pincode)
+  u
+   doc <- getURL(u,referer = "http://analytics.flipkart.com",verbose = TRUE)
+  doc
+  x <- fromJSON(doc,simplify = FALSE)
+  x 
+  if(length(x$results)>0){
+       
+  lat <- x$results[[1]]$geometry$location$lat
+    lng <- x$results[[1]]$geometry$location$lng
+    #location_type <- x$results[[1]]$geometry$location_type
+    #formatted_address <- x$results[[1]]$formatted_address
+    return(c(lat, lng))
+ }
+       else
+         return(c(NA,NA))
+  Sys.sleep(0.5)}
+
+address[,c("lat1","long1")]<-data.frame(t(apply(address,1,function(x) geoCode(x[4],x[5],x[6],x[7],x[8]))))
+
