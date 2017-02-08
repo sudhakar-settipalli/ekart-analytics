@@ -1,0 +1,23 @@
+INSERT overwrite table fulfillment_liteshipmentservicerequest_base_fact
+select entityid as sr_id , 
+`data`.shipment_reference_ids as shipment_reference_ids,
+`data`.vendor_tag as vendor_tag,
+`data`.design_sla as design_sla,
+`data`.customer_sla as customer_sla,
+`data`.created_at as created_at,
+`data`.transit_type as transit_type,
+`data`.shipment_movement_type as shipment_movement_type,
+`data`.payment_type as payment_type,
+`data`.updated_at as updated_at,
+`data`.size as size,
+`data`.vendor_tracking_id as vendor_tracking_id,
+`data`.destination_address.pincode as destination_pincode,
+`data`.destination_address.type as destination_type,
+`data`.shipment_value.currency as shipment_currency,
+`data`.shipment_value.value as shipment_value,
+`data`.amount_to_collect.currency as amount_to_collect_currency,
+`data`.amount_to_collect.value as amount_to_collect_value,
+`data`.source_address.pincode as source_pincode,
+`data`.source_address.type as source_type,
+`data`.source_address.id as source_id
+from bigfoot_snapshot.dart_fkint_scp_fulfillment_liteshipmentservicerequest_3_view;

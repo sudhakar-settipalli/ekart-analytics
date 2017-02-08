@@ -1,0 +1,37 @@
+INSERT OVERWRITE TABLE callbridging_l0_fact 
+select distinct  Interaction.`data`.interactionid,
+Interaction.`data`.interactioncategory,
+Interaction.`data`.initiatorcontact,
+Interaction.`data`.initiatorid,
+lookupkey('agent_id',Interaction.`data`.initiatorid) as agentinitiator_key,
+Interaction.`data`.initiatortype,
+Interaction.`data`.medium,
+Interaction.`data`.receivercontact,
+Interaction.`data`.receiverid,
+lookupkey('agent_id',Interaction.`data`.receiverid) as receiverid_key,
+Interaction.`data`.receiverphone,
+Interaction.`data`.receivertype,
+Interaction.`data`.vendorname,
+Interaction.`data`.shipmentid,
+Interaction.`data`.sheet_id,
+Interaction.`data`.sheet_type,
+case when (Interaction.`data`.sheet_id is not null and upper(Interaction.`data`.sheet_id) != 'NONE') then concat(Interaction.`data`.sheet_type,'-',Interaction.`data`.sheet_id) end as runsheet_id,
+PhoneInteraction.`data`.recordinglink,
+Interaction.data.`timestamp`,
+lookup_time(Interaction.data.`timestamp`) as timestamp_time_key,
+lookup_date(Interaction.data.`timestamp`) as timestamp_date_key,
+PhoneInteraction.`data`.starttime,
+lookup_time(PhoneInteraction.`data`.starttime) as start_time_key,
+lookup_date(PhoneInteraction.`data`.starttime) as start_date_key,
+PhoneInteraction.`data`.endtime,
+lookup_time(PhoneInteraction.`data`.endtime) as end_time_key,
+lookup_date(PhoneInteraction.`data`.endtime) as end_date_key,
+(((hour(PhoneInteraction.`data`.endtime - PhoneInteraction.`data`.starttime) * 3600) + (minute(PhoneInteraction.`data`.endtime - PhoneInteraction.`data`.starttime) * 60) +  second(PhoneInteraction.`data`.endtime - PhoneInteraction.`data`.starttime))- PhoneInteraction.`data`.connectedtime) as leg1duration,
+PhoneInteraction.`data`.connectedtime as leg2duration,
+PhoneInteraction.`data`.callstatus,
+PhoneInteraction.`data`.bridgenumber,
+PhoneInteraction.`data`.ivrcode
+from bigfoot_journal.dart_fkint_scp_ekl_interaction_2 Interaction
+INNER JOIN bigfoot_journal.dart_fkint_scp_ekl_phoneinteraction_2 PhoneInteraction
+ON Interaction.`data`.interactionid=PhoneInteraction.`data`.interactionid 
+and PhoneInteraction.`data`.starttime=Interaction.data.`timestamp`;

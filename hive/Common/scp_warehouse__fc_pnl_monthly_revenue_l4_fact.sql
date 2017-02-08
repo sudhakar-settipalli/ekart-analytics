@@ -1,0 +1,21 @@
+INSERT OVERWRITE TABLE fc_pnl_monthly_revenue_l4_fact 
+SELECT 
+a.fc_pnl_warehouse as fc_pnl_warehouse,
+a.fc_pnl_month as fc_pnl_month,
+a.fc_pnl_units as fc_pnl_units,
+a.fc_pnl_revenue_type as fc_pnl_revenue_type,
+a.fc_pnl_revenue as fc_pnl_revenue,
+a.fc_pnl_freebie_units as fc_pnl_freebie_units,
+a.fc_pnl_freebie_revenue as fc_pnl_freebie_revenue,
+a.fc_pnl_fragile_units as fc_pnl_fragile_units,
+a.fc_pnl_fragile_revenue as fc_pnl_fragile_revenue,
+a.fc_pnl_returns_mobile_units as fc_pnl_returns_mobile_units,
+a.fc_pnl_returns_mobile_revenue as fc_pnl_returns_mobile_revenue,
+a.fc_pnl_storage_space_utilized_in_cubic_feet as fc_pnl_storage_space_utilized_in_cubic_feet,
+a.fc_pnl_commitment_outbound_inbound_units as fc_pnl_commitment_outbound_inbound_units,
+a.fc_pnl_commitment_inventory_fc_rc_storage as fc_pnl_commitment_inventory_fc_rc_storage,
+a.fc_pnl_commitment_outbound_inbound_revenue as fc_pnl_commitment_outbound_inbound_revenue,
+a.fc_pnl_commitment_inventory_fc_rc_storage_revenue as fc_pnl_commitment_inventory_fc_rc_storage_revenue,
+a.fc_pnl_total_revenue as fc_pnl_total_revenue
+from 
+bigfoot_external_neo.scp_warehouse__fc_pnl_monthly_revenue_l4_hive_fact a;
