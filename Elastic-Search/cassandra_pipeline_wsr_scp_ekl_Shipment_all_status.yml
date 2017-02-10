@@ -1,0 +1,245 @@
+topology_name: Prod-cpp-wsr-scp-ekl-Shipment
+type: kafka-to-sink-pipeline
+retry_identifier: cassandra_scp_ekl_Shipment
+
+
+storm_properties:
+    topology.max.spout.pending: 1
+    nimbus.task.timeout.secs: 240
+    supervisor.worker.timeout.secs: 300
+    topology.message.timeout.secs: 600
+    topology.workers: 10
+
+spout:
+    name: LS-sp-wsr-scp-ekl-shipment-Spout
+    topic: dart.wsr.scp.ekl.Shipment
+    parallelism_hint: 40
+    num_instances: 1
+    poll_interval_ms: 5000
+    zk_hosts:
+        - "10.33.37.70:2181"
+        - "10.32.233.153:2181"
+        - "10.32.141.56:2181"
+        - "10.33.245.114:2181"
+        - "10.32.65.160:2181/prod-fdp-dart-kafka"
+    start_offset: -2
+
+transformation_bolt:
+    name: Transformation-bolt
+    type: transformation-bolt
+    parallelism_hint: 120
+    filter_expression: |
+        result = False
+        statuses = ['Sent', 'Delivered', 'Expected', 'InScan_Success', 'Not_Received', 'Out_For_Delivery', 'PICKUP_Out_For_Pickup', 'Received', 'Received_By_Ekl', 'Returned_To_Ekl', 'delivered', 'dispatched_to_merchant', 'dispatched_to_seller', 'dispatched_to_vendor', 'expected', 'not_received', 'pickup_complete', 'pickup_out_for_pickup', 'pickup_scheduled', 'received', 'returned', 'vendor_received', 'Undelivered_Not_Attended', 'received_at_origin', 'Delivery_Update', 'dispatched_to_tc', 'Error', 'pickup_leg_completed', 'pickup_reattempt', 'received_with_error']
+        if data['data']['status'] in statuses:
+            result = True
+    cassandra_lookup_details:
+        cassandra_host: 10.32.205.210
+        key_space: Reference
+        cassandra_lookups:
+            - lookup_name: shipment
+              table_name: wsr_scp_ekl_Shipment_SId
+              required: false
+              id_expression: data['entityId']
+              id_data_type: java.lang.String
+            - lookup_name: party
+              table_name: wsr_scp_ekl_Party
+              required: false
+              id_expression: data['data']['vendor_id']
+              id_data_type: java.lang.String
+            - lookup_name: source_facility
+              table_name: wsr_scp_ekl_facility
+              required: false
+              id_expression: |
+                address_id = ''
+                if data.get('shipment') is not None:
+                    address_id = data['shipment']['source_address_id']
+                else:
+                    address_id = data['data']['source_address']['id']
+                result = address_id
+              id_data_type: java.lang.String
+            - lookup_name: assigned_facility
+              table_name: wsr_scp_ekl_facility
+              required: false
+              id_expression: |
+                result = ''
+                if data['data']['assigned_address'] is not None:
+                    if data['data']['assigned_address']['id'] is not None:
+                        result = data['data']['assigned_address']['id']
+              id_data_type: java.lang.String
+            - lookup_name: origin_mh_facility
+              table_name: wsr_scp_ekl_facility
+              required: false
+              id_expression: |
+                origin_mh_id = ''
+                if data.get('shipment') is None:
+                    if data['data']['current_address']['type'] == 'MOTHER_HUB' and data['data']['status'] == 'InScan_Success':
+                        origin_mh_id = data['data']['current_address']['id']
+                else:
+                    if data['shipment']['origin_mh_id'] is None:
+                        if data['data']['current_address']['type'] == 'MOTHER_HUB' and data['data']['status'] == 'InScan_Success':
+                            origin_mh_id = data['data']['current_address']['id']
+                    else:
+                        origin_mh_id = data['shipment']['origin_mh_id']
+                result = origin_mh_id
+              id_data_type: java.lang.String
+            - lookup_name: source_geo
+              table_name: fki_scp_ekl_Geo
+              required: false
+              id_expression: |
+                pincode = ''
+                if data['data']['source_address'].get('pincode') is not None:
+                    pincode = data['data']['source_address']['pincode']
+                result = pincode
+              id_data_type: java.lang.String
+            - lookup_name: destination_geo
+              table_name: fki_scp_ekl_Geo
+              required: false
+              id_expression: |
+                pincode = ''
+                if data['data']['destination_address'].get('pincode') is not None:
+                    pincode = data['data']['destination_address']['pincode']
+                result = pincode
+              id_data_type: java.lang.String
+            - lookup_name: destination_facility
+              table_name: wsr_scp_ekl_facility_pincode_type
+              required: false
+              id_expression: |
+                pincode = ''
+                if data['data']['destination_address'].get('pincode') is not None:
+                    pincode = data['data']['destination_address']['pincode']
+                size = data['data']['size']
+                if size == 'bulk':
+                    type = 'BULK_HUB'
+                else:
+                    type = 'DELIVERY_HUB'
+                result = pincode + '_' + type
+              id_data_type: java.lang.String
+            - lookup_name: logistics
+              table_name: wsr_scp_ekl_B2CLogisticsRequest_SId
+              required: false
+              id_expression: data['entityId']
+              id_data_type: java.lang.String
+            - lookup_name: order_item
+              table_name: fkint_scp_oms_Order_Item_SId
+              required: false
+              id_expression: |
+                result = ''
+                if data.get('logistics') is not None:
+                    result = data.get('logistics').get('merchant_reference_id')
+              id_data_type: java.lang.String
+    schema_map:
+        current_address_id:
+            column_definition: data['data']['current_address']['id']
+            column_type: java.lang.String
+        customer_promise_date:
+            column_definition: data['data'].get('customer_sla')
+            column_type: java.lang.String
+        logistics_promise_date:
+            column_definition: data['data'].get('design_sla')
+            column_type: java.lang.String
+        current_address_pincode:
+            column_definition: "data['data']['current_address']['pincode'] if data['data']['current_address'].get('pincode') is not None else '' "
+            column_type: java.lang.String
+        current_address_type:
+            column_definition: data['data']['current_address']['type']
+            column_type: java.lang.String
+        vendor_id:
+            column_definition: "data['data']['vendor_id'] if data['data']['vendor_id'] != '' else 'VNF' "
+            column_type: java.lang.String
+        vendor_display_name:
+            column_definition: "data['party']['display_name'] if data.get('party') is not None else 'VNF' "
+            column_type: java.lang.String
+        vendor_type:
+            column_definition: "data['party']['vendor_type'] if data.get('party') is not None else 'VNF' "
+            column_type: java.lang.String
+        shipment_id:
+            column_definition: data['entityId']
+            column_type: java.lang.String
+        status:
+            column_definition: data['data']['status']
+            column_type: java.lang.String
+        updated_at:
+            column_definition: data['updatedAt']
+            column_type: java.lang.Number
+        vendor_tracking_id:
+            column_definition: data['data']['vendor_tracking_id']
+            column_type: java.lang.String
+        status_type_key:
+            column_definition: "data['data']['status']+'_'+data['data']['current_address']['type']"
+            column_type: java.lang.String
+        shipment_type:
+            column_definition: data['data']['shipment_type']
+            column_type: java.lang.String
+        order_item_created_at:
+            column_definition: |
+                if data.get('order_item') is not None:
+                    result = data['order_item'].get('Order_Item_Created_At')
+            column_type: java.lang.String
+        order_id:
+            column_definition: |
+                if data.get('order_item') is not None:
+                    result = str(data['order_item'].get('Order_ID'))
+            column_type: java.lang.String
+        assigned_hub_id:
+            column_definition: |
+                result = ''
+                if data['data']['assigned_address'] is not None:
+                    if data['data']['assigned_address']['id'] is not None:
+                        result = data['data']['assigned_address']['id']
+            column_type: java.lang.String
+        assigned_hub_display_name:
+            column_definition: |
+                result = ''
+                if data['assigned_facility'] is not None:
+                    if data['assigned_facility']['display_name'] is not None:
+                        result = data['assigned_facility']['display_name']
+            column_type: java.lang.String
+        assigned_hub_name:
+            column_definition: |
+                result = ''
+                if data['assigned_facility'] is not None:
+                    if data['assigned_facility']['name'] is not None:
+                        result = data['assigned_facility']['name']
+            column_type: java.lang.String
+        assigned_hub_type:
+            column_definition: |
+                result = ''
+                if data['assigned_facility'] is not None:
+                    if data['assigned_facility']['type'] is not None:
+                        result = data['assigned_facility']['type']
+            column_type: java.lang.String
+        assigned_hub_zone:
+            column_definition: |
+                result = ''
+                if data['assigned_facility'] is not None:
+                    if data['assigned_facility']['zone'] is not None:
+                        result = data['assigned_facility']['zone']
+            column_type: java.lang.String        
+sink_bolt:
+    name: Cassandra-bolt
+    type: cassandra-bolt
+    parallelism_hint: 30
+    cassandra_host: 10.32.221.231,10.32.209.243,10.34.17.204,10.34.85.20,10.34.101.182,10.34.57.144,10.34.41.192,10.34.97.135,10.32.245.203
+    column_family_name: wsr_scp_ekl_Shipment_SId_all_status
+    object_id_key: shipment_id
+    column_name_key: status_type_key
+    key_space: Reference
+    time_to_live: 5184000
+
+kafka_bolt:
+    name: Kafka-bolt
+    type: kafka-bolt
+    parallelism_hint: 20
+    zk_hosts:
+        - "10.32.185.202:2181"
+        - "10.32.41.70:2181"
+        - "10.32.45.164:2181/prod-fdpflow-kafka-b"
+    producer_type: sync
+    request_required_acks: 2
+    serializer_class: kafka.serializer.DefaultEncoder
+    partitioner_class: com.flipkart.bigfoot.fireball.engine.pipeline.bolt.utils.RetryKafkaPartitioner
+    compression_codec: snappy
+    connect_timeout_ms: 30000
+    socket_timeout_ms: 120000
+    storage_batch_size: 15

@@ -1,0 +1,1196 @@
+topology_name: Prod-ep-wsr-scp-ekl-shipment-status-reports-retry
+type: kafka-to-sink-pipeline
+retry_identifier: scp_ekl_shipment
+
+
+storm_properties:
+    topology.max.spout.pending: 1
+    nimbus.task.timeout.secs: 240
+    supervisor.worker.timeout.secs: 300
+    topology.message.timeout.secs: 600
+    topology.workers: 7
+
+spout:
+    name: LS-scp-ekl-shipment-status-reports-retry-Spout
+    topic: Prod.ep.wsr.scp.ekl.shipment.status.reports.retry
+    parallelism_hint: 7
+    num_instances: 1
+    max_batch_size_in_bytes: 524288
+    poll_interval_ms: 5000
+    zk_hosts:
+        - "10.32.185.202:2181"
+        - "10.32.41.70:2181"
+        - "10.32.45.164:2181/prod-fdpflow-kafka-b"
+    start_offset: -2
+
+transformation_bolt:
+    name: Transformation-bolt
+    type: transformation-bolt
+    parallelism_hint: 480
+    filter_expression: |
+        result = True
+        seller_id = ''
+        if data['data'].get('shipment_items') is not None:
+            if len(data['data']['shipment_items']) > 0:
+                seller_id = data['data']['shipment_items'][0].get('seller_id')
+    cassandra_lookup_details:
+        cassandra_host: 10.32.205.210,10.32.125.152,10.33.157.161,10.32.213.182,10.33.141.169,10.32.189.139,10.32.193.183,10.32.161.183,10.32.149.183,10.32.137.217
+        key_space: Reference
+        cassandra_lookups:
+            - lookup_name: shipment_static
+              table_name: wsr_scp_ekl_Shipment_SId
+              required: false
+              id_expression: data['entityId']
+              id_data_type: java.lang.String
+            - lookup_name: shipment
+              table_name: wsr_scp_ekl_Shipment_SId_all_status
+              required: false
+              id_expression: data['entityId']
+              id_data_type: java.lang.String
+            - lookup_name: origin_mh_facility
+              table_name: wsr_scp_ekl_facility
+              required: false
+              id_expression: |
+                result = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'InScan_Success':
+                                result = shipment['current_address_id']
+              id_data_type: java.lang.String
+            - lookup_name: source_facility
+              table_name: wsr_scp_ekl_facility
+              required: false
+              id_expression: data['data']['source_address']['id']
+              id_data_type: java.lang.String
+            - lookup_name: current_facility
+              table_name: wsr_scp_ekl_facility
+              required: false
+              id_expression: str(data['data']['current_address']['id'])
+              id_data_type: java.lang.String
+            - lookup_name: party
+              table_name: wsr_scp_ekl_Party
+              required: false
+              id_expression: data['data']['vendor_id']
+              id_data_type: java.lang.String
+            - lookup_name: logistics
+              table_name: wsr_scp_ekl_B2CLogisticsRequest_SId
+              required: false
+              id_expression: data['entityId']
+              id_data_type: java.lang.String
+            - lookup_name: source_geo
+              table_name: fki_scp_ekl_Geo
+              required: false
+              id_expression: |
+                pincode = ''
+                if data['data']['source_address'].get('pincode') is not None:
+                    pincode = data['data']['source_address']['pincode']
+                result = pincode
+              id_data_type: java.lang.String
+            - lookup_name: destination_geo
+              table_name: fki_scp_ekl_Geo
+              required: false
+              id_expression: |
+                pincode = ''
+                if data['data']['destination_address'].get('pincode') is not None:
+                    pincode = data['data']['destination_address']['pincode']
+                result = pincode
+              id_data_type: java.lang.String
+            - lookup_name: destination_facility
+              table_name: wsr_scp_ekl_facility
+              required: false
+              id_expression: |
+                result = ''
+                if data['data'].get('assigned_address') is not None:
+                    result = data['data'].get('assigned_address').get('id')
+              id_data_type: java.lang.String
+            - lookup_name: order_item
+              table_name: fkint_scp_oms_Order_Item_SId
+              required: false
+              id_expression: |
+                result = ''
+                if data.get('logistics') is not None:
+                    result = data.get('logistics').get('merchant_reference_id')
+              id_data_type: java.lang.String
+            - lookup_name: category_tree
+              table_name: fkmp_sp_product_category_tree
+              required: false
+              id_expression: |
+                result = ''
+                if data.get('order_item') is not None:
+                    result = str(data['order_item'].get('Order_Item_Category_ID'))
+              id_data_type: java.lang.String
+            - lookup_name: associated_shipment
+              table_name: wsr_scp_ekl_Shipment_SId_all_status
+              required: false
+              id_expression: |
+                result = ''
+                if data['data']['associated_shipment_ids'] is not None:
+                    if len(data['data']['associated_shipment_ids']) > 0:
+                        result = data['data']['associated_shipment_ids'][0]
+              id_data_type: java.lang.String
+            - lookup_name: user_contact
+              table_name: fkint_cp_user_contact
+              required: false
+              id_expression: |
+                result = ''
+                if data['data']['destination_address'] is not None:
+                    if data['data']['destination_address']['id'] is not None:                
+                        result = str(data['data']['destination_address']['id'])
+              id_data_type: java.lang.String
+            - lookup_name: product_product
+              table_name: fkmp_sp_product_product
+              required: false
+              id_expression: str(data['data']['product_id'])
+              id_data_type: java.lang.String
+            
+    schema_map:
+        created_at:
+            column_definition: data['data'].get('created_at')
+            column_type: java.lang.String
+        latest_customer_promise_date:
+            column_definition: data['data'].get('customer_sla')
+            column_type: java.lang.String
+        current_facility_id:
+            column_definition: |
+                result = ''
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+                lv_updatedat = sdf.parse("1970-01-01 00:00:00.000")
+                lv_current_address_id = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if sdf.format(shipment['updated_at']) > sdf.format(lv_updatedat):
+                                lv_updatedat = (shipment['updated_at'])
+                                lv_current_address_id = shipment['current_address_id']
+                        if sdf.format(data['updatedAt']) > sdf.format(lv_updatedat):
+                            lv_current_address_id = str(data['data']['current_address']['id'])                        
+                        result = lv_current_address_id
+            column_type: java.lang.String
+        origin_facility_id:
+            column_definition: |
+                result = ''
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd")
+                origin_mh_id = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'InScan_Success':
+                                origin_mh_id = shipment['current_address_id']                               
+                        result = origin_mh_id
+            column_type: java.lang.String
+        assigned_facility_id:
+            column_definition: |
+                result = ''
+                if data['data'].get('assigned_address') is not None:
+                    if data['data']['assigned_address'].get('id') is not None:
+                        result = data['data']['assigned_address']['id']
+            column_type: java.lang.String
+        customer_promise_date:
+            column_definition: |
+                cpd = None
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['customer_promise_date'] != '' and shipment['status'] == 'expected' and shipment['customer_promise_date'] is not None:
+                                cpd = shipment['customer_promise_date']
+                            else:
+                                cpd = data['data'].get('customer_sla')
+                result = cpd
+            column_type: java.lang.String
+        logistics_promise_date:
+            column_definition: |
+                lpd = None
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['logistics_promise_date'] != '' and shipment['status'] == 'expected' and shipment['logistics_promise_date'] is not None:
+                                lpd = shipment['logistics_promise_date']
+                            else:
+                                lpd = data['data'].get('design_sla')
+                result = lpd
+            column_type: java.lang.String
+        is_shipment_inscaned:
+            column_definition: |
+                result = 0
+                if data['data']['current_address']['type'] == 'MOTHER_HUB' and data['data']['status'] == 'InScan_Success':
+                    result = 1
+                elif data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['current_address_type'] == 'MOTHER_HUB' and shipment['status'] == 'InScan_Success':
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_pending:
+            column_definition: |
+                result = 1
+                if data['data']['status'] is not None:
+                    if data['data']['status'] in ('returned_to_seller','pickup_leg_completed','Delivered','delivered','Delivery_Update','received_by_merchant','lost','Lost','damaged','Damaged'):
+                        result = 0
+                else:
+                    result = 1
+            column_type: java.lang.Integer
+        is_shipment_ready_to_ship:
+            column_definition: |
+                result = 0
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'pickup_scheduled':
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_out_for_pickup:
+            column_definition: |
+                result = 0
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'pickup_out_for_pickup':
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_picked_up:
+            column_definition: |
+                result = 0
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'pickup_complete':
+                                result = 1
+                            elif shipment['status'] == 'pickup_completed':
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_primary_scanned:
+            column_definition: |
+                result = 0
+                if data['data']['status'] == 'received':
+                    result = 1
+                elif data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'received':
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_in_transit:
+            column_definition: |
+                result = 0
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+                lv_updatedat = sdf.parse("1970-01-01 00:00:00.000")
+                lv_status = ''
+                lv_current_address_id = ''
+                origin_mh_id = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'InScan_Success':
+                                origin_mh_id = shipment['current_address_id']                               
+                            if sdf.format(shipment['updated_at']) > sdf.format(lv_updatedat):
+                                lv_status = shipment['status']
+                                lv_updatedat = (shipment['updated_at'])
+                                lv_current_address_id = shipment['current_address_id']
+                        if sdf.format(data['updatedAt']) > sdf.format(lv_updatedat):
+                            lv_status = data['data']['status']
+                            lv_current_address_id = str(data['data']['current_address']['id'])                        
+                    if lv_status == 'Expected' and lv_current_address_id != origin_mh_id and lv_current_address_id is not None and lv_current_address_id != '' and origin_mh_id != '':
+                        result = 1
+            column_type: java.lang.Integer
+        consignment_created_date:
+            column_definition: |
+                result = None
+                from java.util import Date
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ")
+                insc_id = ''
+                exp_id = ''
+                d1 = sdf.parse('1970-01-01T00:00:00+0530')
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'Expected':
+                                d1 = Date(shipment['updated_at'])
+                                exp_id = shipment['current_address_id']
+                            if shipment['status'] == 'InScan_Success':
+                                insc_id = shipment['current_address_id']
+                            if insc_id is not None and exp_id is not None and insc_id != '' and insc_id != exp_id:
+                                result = sdf.format(d1)
+            column_type: java.lang.String
+        is_shipment_received_in_dh:
+            column_definition: |
+                result = 0
+                if data['data']['current_address']['type'] == 'DELIVERY_HUB' and data['data']['status'] == 'Received':
+                    result = 1
+                elif data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['current_address_type'] == 'DELIVERY_HUB' and shipment['status'] == 'Received':
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_out_for_delivery:
+            column_definition: |
+                result = 0
+                if data['data']['status'].upper() == 'OUT_FOR_DELIVERY':
+                    result = 1
+                elif data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'].upper() == 'OUT_FOR_DELIVERY':
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_delivered:
+            column_definition: |
+                result = 0
+                if data['data']['current_address']['type'] == 'DELIVERY_HUB' and data['data']['status'].upper() in ('DELIVERED','DELIVERY_UPDATE'):
+                    result = 1
+                elif data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['current_address_type'] == 'DELIVERY_HUB' and shipment['status'].upper() in ('DELIVERED','DELIVERY_UPDATE'):
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_dispatched:
+            column_definition: |
+                result = 0
+                if data['data']['status'] in ('expected','dispatched_to_tc'):
+                    result = 1
+                elif data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] in ('expected','dispatched_to_tc'):
+                                result = 1
+            column_type: java.lang.Integer
+        is_shipment_dispatched_to_vendor:
+            column_definition: |
+                result = 0
+                if data['data']['status'] == 'dispatched_to_vendor':
+                    result = 1
+                elif data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'dispatched_to_vendor':
+                                result = 1
+            column_type: java.lang.Integer
+        source_address_type:
+            column_definition: data['data']['source_address']['type']
+            column_type: java.lang.String
+        destination_address_pincode:
+            column_definition: "data['data']['destination_address']['pincode'] if data['data']['destination_address']['pincode'] is not None else '' "
+            column_type: java.lang.String
+        destination_address_type:
+            column_definition: data['data']['destination_address']['type']
+            column_type: java.lang.String
+        vendor_id:
+            column_definition: data['data']['vendor_id']
+            column_type: java.lang.String
+        vendor_tracking_id:
+            column_definition: data['data']['vendor_tracking_id']
+            column_type: java.lang.String
+        status:
+            column_definition: |
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+                lv_updatedat = sdf.parse("1970-01-01 00:00:00.000")
+                lv_status = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if sdf.format(shipment['updated_at']) > sdf.format(lv_updatedat):
+                                lv_status = shipment['status']
+                                lv_updatedat = (shipment['updated_at'])
+                if sdf.format(data['updatedAt']) > sdf.format(lv_updatedat):
+                    lv_status = data['data']['status']
+                result = lv_status
+            column_type: java.lang.String
+        origin_facility_name:
+            column_definition: |
+                result = ''
+                if data.get('shipment_static') is not None:
+                    result = data['shipment_static']['origin_facility_name']
+            column_type: java.lang.String
+        assigned_hub_name:
+            column_definition: |
+                result = ''
+                if data.get('shipment_static') is not None:
+                    result = data['shipment_static']['assigned_hub_name']
+            column_type: java.lang.String
+        assigned_hub_zone:
+            column_definition: |
+                result = ''
+                if data.get('shipment_static') is not None:
+                    if data['shipment_static']['assigned_hub_zone'] is not None:
+                        result = data['shipment_static']['assigned_hub_zone']
+            column_type: java.lang.String
+        seller_type:
+            column_definition: |
+                result = ''
+                lv_sellertype = ''
+                tmp=data['data']['vendor_tracking_id'][:3]
+                if data['data']['source_address'] is not None:
+                    if data['data']['source_address']['type'] is not None:
+                                if data['data']['source_address']['type'].upper() == 'WAREHOUSE' and data['data']['shipment_items'] is not None:
+                                    #if data['data']['shipment_items'][0]['seller_id'].upper() in ('wsr', 'd591418b408940a0'):
+                                    #    lv_sellertype = 'WSR'
+                                    if tmp=='MYN':
+                                        lv_sellertype = 'MYN'             
+                                    elif tmp=='JBN':
+                                        lv_sellertype = 'JBN'             
+                                    elif tmp=='YPM':
+                                        lv_sellertype = 'YEPME'          
+                                    elif tmp=='PTM':
+                                        lv_sellertype = 'PAYTM'            
+                                    elif tmp=='VNK':
+                                        lv_sellertype = 'VOONIK'          
+                                    elif tmp=='HOP':
+                                        lv_sellertype = 'HOPSCOTCH'       
+                                    elif tmp=='RLG':
+                                        lv_sellertype = 'RELIANCE_ADA'    
+                                    elif tmp=='PGN':
+                                        lv_sellertype = 'GOPIGEON'        
+                                    elif tmp=='HLK':
+                                        lv_sellertype = 'HEALTHKART'
+                                    else:
+                                        lv_sellertype = 'FA'
+                                elif data['data']['source_address']['type'].upper() == 'MP_NON_FBF_SELLER':
+                                    lv_sellertype = 'Non-FA'
+                                elif data['data']['source_address']['type'].upper() == 'CUSTOMER' and data['data']['shipment_items'] is not None:
+                                    #if data['data']['shipment_items'][0]['seller_id'].upper() in ('wsr', 'd591418b408940a0'):
+                                    #    lv_sellertype = 'WSR'
+                                    if tmp=='MYN':
+                                        lv_sellertype = 'MYN'           
+                                    elif tmp=='JBN':
+                                        lv_sellertype = 'JBN'            
+                                    elif tmp=='YPM':
+                                        lv_sellertype = 'YEPME'           
+                                    elif tmp=='PTM':
+                                        lv_sellertype = 'PAYTM'           
+                                    elif tmp=='VNK':
+                                        lv_sellertype = 'VOONIK'         
+                                    elif tmp=='HOP':
+                                        lv_sellertype = 'HOPSCOTCH'       
+                                    elif tmp=='RLG':
+                                        lv_sellertype = 'RELIANCE_ADA'    
+                                    elif tmp=='PGN':
+                                        lv_sellertype = 'GOPIGEON'         
+                                    elif tmp=='HLK':
+                                        lv_sellertype = 'HEALTHKART'
+                                    elif data['data']['destination_address']['type'].upper() == 'WAREHOUSE':
+                                        lv_sellertype = 'FA'
+                                    else:
+                                        lv_sellertype = 'Non-FA'                            
+                result = lv_sellertype
+            column_type: java.lang.String
+        shipping_category:
+            column_definition: |
+                result = ''
+                if data.get('shipment_static') is not None:
+                    result = data['shipment_static']['shipping_category']
+            column_type: java.lang.String
+        source_facility_type:
+            column_definition: |
+                type = ''
+                if data.get('source_facility') is not None:
+                    type = data['source_facility']['type']
+                result = type
+            column_type: java.lang.String
+        source_facility_name:
+            column_definition: |
+                name = ''
+                if data.get('source_facility') is not None:
+                    name = data['source_facility']['name']
+                result = name
+            column_type: java.lang.String
+        source_facility_zone:
+            column_definition: |
+                zone = ''
+                if data.get('source_facility') is not None:
+                    zone = data['source_facility']['zone']
+                result = zone
+            column_type: java.lang.String
+        origin_mh_facility_id:
+            column_definition: |
+                result = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'InScan_Success':
+                                result = shipment['current_address_id']
+            column_type: java.lang.String
+        origin_mh_facility_name:
+            column_definition: |
+                result = ''
+                if data.get('shipment_static') is not None:
+                    if data['shipment_static']['origin_mh_facility_name'] != '':
+                        result = data['shipment_static']['origin_mh_facility_name']
+                    else:
+                        if data.get('origin_mh_facility') is not None:
+                            result = data['origin_mh_facility']['name']
+                if data.get('origin_mh_facility') is not None:
+                    result = data['origin_mh_facility']['name']
+            column_type: java.lang.String
+        current_facility_name:
+            column_definition: |
+                name = ''
+                if data.get('current_facility') is not None:
+                    name = data['current_facility']['name']
+                result = name
+            column_type: java.lang.String
+        current_facility_type:
+            column_definition: |
+                ## chage start
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+                lv_updatedat = sdf.parse("1970-01-01 00:00:00.000")
+                lv_current_address_type = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:                               
+                            if sdf.format(shipment['updated_at']) > sdf.format(lv_updatedat):
+                                lv_updatedat = (shipment['updated_at'])
+                                lv_current_address_type = shipment['current_address_type']
+                        if sdf.format(data['updatedAt']) > sdf.format(lv_updatedat):
+                            lv_current_address_type = data['data']['current_address']['type']
+                result = lv_current_address_type
+            column_type: java.lang.String
+        destination_facility_type:
+            column_definition: |
+                result = ''
+                if data.get('destination_facility') is not None:
+                    result = data['destination_facility'].get('type')
+            column_type: java.lang.String
+        destination_facility_name:
+            column_definition: |
+                result = ''
+                if data.get('destination_facility') is not None:
+                    result = data['destination_facility'].get('name')
+            column_type: java.lang.String
+        destination_facility_zone:
+            column_definition: |
+                result = ''
+                if data.get('destination_facility') is not None:
+                    result = data['destination_facility'].get('zone')
+            column_type: java.lang.String
+        geo_zone:
+            column_definition: |
+                result = ''
+                if data.get('shipment_static') is not None:
+                    if data['shipment_static']['geo_zone'] is not None and data['shipment_static']['geo_zone'] != '' and data['shipment_static']['geo_zone'] is not None:
+                        result = data['shipment_static']['geo_zone']
+                    else:
+                        if data.get('source_geo') is not None and data.get('destination_geo') is not None:
+                            if data['source_geo']['local_territory'] == data['destination_geo']['local_territory'] and data['source_geo']['local_territory'] != '' and data['destination_geo']['local_territory'] != '':
+                                result = 'intra-city'
+                            if data['source_geo']['city'] == data['destination_geo']['city'] and data['source_geo']['city'] != '' and data['destination_geo']['city'] != '':
+                                result = 'intra-city'
+                            elif data['source_geo']['zone'] == data['destination_geo']['zone'] and data['source_geo']['zone'] != '' and data['destination_geo']['zone'] != '':
+                                result = 'intra-zone'
+                            elif data['source_geo']['zone'] != data['destination_geo']['zone'] and data['source_geo']['zone'] != '' and data['destination_geo']['zone'] != '':
+                                result = 'inter-zone'
+                        else:
+                            result = 'missing'
+            column_type: java.lang.String
+        carrier:
+            column_definition: "data['party']['vendor_type'] if data.get('party') is not None else 'VNF' "
+            column_type: java.lang.String
+        vendor_name:
+            column_definition: |
+                result = ''
+                if data.get('shipment_static') is not None:
+                    result = data['shipment_static']['vendor_display_name']
+            column_type: java.lang.String
+        shipment_type:
+            column_definition: |
+                r = data['data']['shipment_type']
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+                lv_updatedat = sdf.parse("1970-01-01 00:00:00.000")
+                lv_status = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if sdf.format(shipment['updated_at']) > sdf.format(lv_updatedat):
+                                lv_status = shipment['status']
+                                lv_updatedat = (shipment['updated_at'])
+                if sdf.format(data['updatedAt']) > sdf.format(lv_updatedat):
+                    lv_status = data['data']['status']
+                if data.get('associated_shipment') is not None and data['data']['shipment_type'] == 'forward':
+                    if len(data['associated_shipment']) > 0:
+                        for associated_shipment in data['associated_shipment']:
+                            if associated_shipment['shipment_type'] is not None and associated_shipment['shipment_type'].lower() in ('approved_rto','unapproved_rto','rvp') and lv_status not in ('reshipped', 'pickup_leg_completed'):
+                                r = 'merchant_return'                                
+                result = r
+            column_type: java.lang.String
+        logistics_service_offering:
+            column_definition: |
+                lso = 'Normal'
+                if data.get('logistics') is not None:
+                    data_list = data['logistics']['logistics_service_offering']
+                    if 'Next Day Delivery' in data_list:
+                        lso = 'NDD'
+                    elif 'Same Day Delivery' in data_list:
+                        lso = 'SDD'
+                    else:
+                        lso = 'Normal'
+                result = lso
+            column_type: java.lang.String
+        logistics_service_tier:
+            column_definition: |
+                lst = ''
+                if data.get('logistics') is not None:
+                    data_list = data['logistics']['logistics_service_offering']
+                    if 'Standard Delivery' in data_list:
+                        lst = 'Regular'
+                    elif 'Economy Delivery' in data_list:
+                        lst = 'Economy'
+                    else:
+                        lst = 'Regular'
+                result = lst
+            column_type: java.lang.String
+        shipment_id:
+            column_definition: data['entityId']
+            column_type: java.lang.String
+                       
+        out_for_delivery_date:
+            column_definition: "from java.util import Date\nfrom java.text import SimpleDateFormat\nif data['data']['status'].upper() == 'OUT_FOR_DELIVERY':\n\tresult =data['data']['updated_at']\nelse: \n\t\tif data.get('shipment') is not None:\n\t\t\tfor shipment in data.get('shipment'):\n\t\t\t\tif shipment['status'].upper() == 'OUT_FOR_DELIVERY':\n\t\t\t\t\tsdf = SimpleDateFormat(\"yyyy-MM-dd'T'HH:mm:ssZ\")\n\t\t\t\t\td1 = Date(shipment['updated_at'])\n\t\t\t\t\tresult = sdf.format(d1)"
+            column_type: java.lang.String         
+        delivery_date:
+            column_definition: "from java.util import Date\nfrom java.text import SimpleDateFormat\nif data['data']['status'].upper() in ('DELIVERED','DELIVERY_UPDATE'):\n\tresult =data['data']['updated_at']\nelse:\n\tif data.get('shipment') is not None:\n\t\tfor shipment in data.get('shipment'):\n\t\t\tif shipment['status'].upper() in ('DELIVERED','DELIVERY_UPDATE'):\n\t\t\t\tsdf = SimpleDateFormat(\"yyyy-MM-dd'T'HH:mm:ssZ\")\n\t\t\t\td1 = shipment['updated_at']\n\t\t\t\tresult = sdf.format(d1)"
+            column_type: java.lang.String
+        dispatched_date:
+            column_definition: "from java.util import Date\nfrom java.text import SimpleDateFormat\nif data['data']['status'].lower() in ('expected','dispatched_to_tc'):\n\tresult =data['data']['updated_at']\nelse:\n\tif data.get('shipment') is not None:\n\t\tfor shipment in data.get('shipment'):\n\t\t\tif shipment['status'] in ('expected','dispatched_to_tc'):\n\t\t\t\tsdf = SimpleDateFormat(\"yyyy-MM-dd'T'HH:mm:ssZ\")\n\t\t\t\td1 = Date(shipment['updated_at'])\n\t\t\t\tresult = sdf.format(d1)"
+            column_type: java.lang.String
+        inscanned_date:
+            column_definition: "from java.util import Date\nfrom java.text import SimpleDateFormat\nif data['data']['status'] in ('InScan_Success','Received'):\n\tresult =data['data']['updated_at']\nelse:\n\tif data.get('shipment') is not None:\n\t\tfor shipment in data.get('shipment'):\n\t\t\tif shipment['status'] in ('InScan_Success','Received'):\n\t\t\t\tsdf = SimpleDateFormat(\"yyyy-MM-dd'T'HH:mm:ssZ\")\n\t\t\t\td1 = Date(shipment['updated_at'])\n\t\t\t\tresult = sdf.format(d1)"
+            column_type: java.lang.String
+        vendor_dispatch_date_new:
+            column_definition: "from java.util import Date\nfrom java.text import SimpleDateFormat\nif data['data']['current_address_type'] == 'FKL_FACILITY' and data['data']['status'] == 'dispatched_to_vendor':\n\tresult =data['data']['updated_at']\nelse:\n\tif data.get('shipment') is not None:\n\t\tfor shipment in data.get('shipment'):\n\t\t\tif shipment['current_address_type'] == 'FKL_FACILITY' and shipment['status'] == 'dispatched_to_vendor':\n\t\t\t\tsdf = SimpleDateFormat(\"yyyy-MM-dd'T'HH:mm:ssZ\")\n\t\t\t\td1 = Date(shipment['updated_at'])\n\t\t\t\tresult = sdf.format(d1)"
+            column_type: java.lang.String
+        received_in_dh_date:
+            column_definition: "from java.util import Date\nfrom java.text import SimpleDateFormat\nif data['data']['current_address_type'] == 'DELIVERY_HUB' and data['data']['status'] == 'Received':\n\tresult =data['data']['updated_at']\nelse:\n\tif data.get('shipment') is not None:\n\t\tfor shipment in data.get('shipment'):\n\t\t\tif shipment['current_address_type'] == 'DELIVERY_HUB' and shipment['status'] == 'Received':\n\t\t\t\tsdf = SimpleDateFormat(\"yyyy-MM-dd'T'HH:mm:ssZ\")\n\t\t\t\td1 = Date(shipment['updated_at'])\n\t\t\t\tresult = sdf.format(d1)"
+            column_type: java.lang.String
+        last_update_datetime:
+            column_definition: data['data'].get('updated_at')
+            column_type: java.lang.String
+        shipment_pending_location:
+            column_definition: |
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+                lv_updatedat = sdf.parse("1970-01-01 00:00:00.000")
+                lv_status = ''
+                lv_current_address_type = ''
+                lv_current_address_id = ''
+                lv_shipment_type = data['data']['shipment_type']
+                pl = ''
+                origin_mh_id = ''
+                if data.get('associated_shipment') is not None:
+                    if len(data['associated_shipment']) > 0:
+                        for associated_shipment in data['associated_shipment']:
+                            if associated_shipment['shipment_type'] is not None and associated_shipment['shipment_type'].lower() in ('approved_rto','unapproved_rto','rvp'):
+                                lv_shipment_type = 'merchant_return'
+                if data.get('shipment') is not None and lv_shipment_type == 'forward':
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'InScan_Success':
+                                origin_mh_id = shipment['current_address_id']               
+                            if (sdf.format(shipment['updated_at']) > sdf.format(lv_updatedat) or shipment['status'].upper() in ('DELIVERED','DELIVERY_UPDATE') ) and lv_status.upper() not in ('DELIVERED','DELIVERY_UPDATE'):
+                                lv_status = shipment['status']
+                                lv_updatedat = (shipment['updated_at'])
+                                lv_current_address_type = shipment['current_address_type']
+                                lv_current_address_id = shipment['current_address_id']
+                if sdf.format(data['updatedAt']) > sdf.format(lv_updatedat):
+                    lv_status = data['data']['status']
+                    lv_current_address_type = data['data']['current_address']['type']
+                    lv_updatedat = (data['updatedAt'])
+                    lv_current_address_id = str(data['data']['current_address']['id'])                        
+                if (origin_mh_id is None or origin_mh_id == '') and data['data']['current_address']['type'] == 'MOTHER_HUB':
+                    origin_mh_id = str(data['data']['current_address']['id'])
+                if data['data']['associated_shipment_ids'] is not None and lv_status == 'pickup_leg_completed':
+                    if len(data['data']['associated_shipment_ids']) > 0:
+                        pl = 'Relabled Tracking id'
+                elif lv_shipment_type == 'forward':
+                        if lv_status.upper() in ('DELIVERED','DELIVERY_UPDATE'):
+                            pl = 'Delivered'
+                        elif lv_status.lower() == 'not_received':
+                            pl = 'Dispatch cancelled by SELLER'
+                        elif lv_status == 'Expected':
+                            if origin_mh_id != '' and lv_current_address_id != origin_mh_id:
+                                pl = 'Pending_INTRANSIT'
+                            else:
+                                pl = 'Pending@MH'
+                        elif lv_status in ('Received','Undelivered_Not_Attended','Error'):
+                            if lv_current_address_type == 'DELIVERY_HUB':
+                                pl = 'Pending@DH'
+                            elif origin_mh_id != '' and lv_current_address_id == origin_mh_id:
+                                pl = 'Pending@MH'
+                            else:
+                                pl = 'Pending@TC'
+                        elif lv_status in ('expected','InScan_Success'):
+                            pl = 'Pending@MH'
+                        elif (lv_current_address_type == 'FKL_FACILITY' or data['data']['source_address']['type'] == 'WAREHOUSE') and lv_status in ('received', 'dispatched_to_vendor', 'dispatch_to_vendor'):
+                            pl = 'Pending@MH'
+                        elif lv_status in ('pickup_scheduled','pickup_out_for_pickup','pickup_complete','pickup_reattempt'):
+                            pl = 'Pending@FirstMile'
+                        elif lv_status in ('expected','dispatched_to_tc') and data['data']['source_address']['type'] == 'MP_NON_FBF_SELLER':
+                            pl = 'Intransit_PH-MH'
+                        elif origin_mh_id != '' and lv_current_address_id == origin_mh_id:
+                                pl = 'Pending@MH'
+                        elif lv_current_address_type == 'MOTHER_HUB':
+                            pl = 'Pending@TC'
+                        elif lv_current_address_type == 'DELIVERY_HUB':
+                            pl = 'Pending@DH'
+                        elif lv_current_address_type == 'PL_FACILITY':
+                            pl = 'Pending@FirstMile'
+                        else:
+                            pl = 'forward_RCA'
+                else:
+                    if lv_status.upper() in ('DELIVERED','DELIVERY_UPDATE'):
+                            pl = 'Delivered'
+                    elif lv_status in ('pickup_scheduled','pickup_out_for_pickup','pickup_complete','pickup_reattempt'):
+                        pl = 'Pending@FirstMile'
+                    elif lv_status in ('expected', 'dispatched_to_tc'):
+                        if data['data']['source_address']['type'] == 'MP_NON_FBF_SELLER':
+                            pl = 'Intransit_PH-MH'
+                        if data['data']['source_address']['type'] == 'WAREHOUSE':
+                            pl = 'Pending@MH'
+                    elif lv_current_address_type == 'MOTHER_HUB':
+                        if lv_status in ('InScan_Success','dispatched_to_vendor'):
+                            pl='Pending@MH'
+                        else:
+                            pl = 'Pending@TC'
+                    elif lv_current_address_type == 'FKL_FACILITY' and lv_status in ('received','dispatched_to_vendor','dispatch_to_vendor'):
+                        pl = 'Pending@MH'
+                    elif lv_current_address_type == 'DELIVERY_HUB':
+                        pl = 'Pending@DH'
+                    elif lv_current_address_type == 'PL_FACILITY':
+                        pl = 'Pending@FirstMile'
+                    else:
+                        pl = 'non_forward_RCA'
+                result = pl
+                ## chage end
+            column_type: java.lang.String
+        destination_address_city:
+            column_definition: |
+                result = ''
+                if data.get('destination_geo') is not None:
+                    result = data['destination_geo'].get('city')
+            column_type: java.lang.String
+        order_item_created_at:
+            column_definition: |
+                d = None
+                result= None
+                if data.get('order_item') is not None:
+                    d = data['order_item'].get('Order_Item_Created_At')
+                elif data.get('associated_shipment') is not None:
+                    if data['associated_shipment'].size() > 0:
+                        for associated_shipment in data['associated_shipment']:
+                            d = associated_shipment['order_item_created_at']
+                result=d
+            column_type: java.lang.String
+        super_category:
+            column_definition: |
+                super_category = ''
+                if data.get('category_tree') is not None:
+                    if data['category_tree']['anlt_supercategory'] is not None:
+                        super_category = data['category_tree']['anlt_supercategory']
+                result = super_category
+            column_type: java.lang.String
+        is_consignment_created:
+            column_definition: |
+                result = 0
+                insc_id = ''
+                exp_id = ''
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['status'] == 'InScan_Success':
+                                insc_id = shipment['current_address_id']
+                            if shipment['status'] == 'Expected':
+                                exp_id = shipment['current_address_id']
+                            if insc_id is not None and exp_id is not None and insc_id != '' and exp_id != '' and insc_id != exp_id:
+                                result = 1
+            column_type: java.lang.Integer
+        order_item_created_at_date:
+            column_definition: |
+                if data.get('order_item') is not None:
+                    result = data['order_item'].get('Order_Item_Created_At')[:10] + 'T00:00:00.000+05:30'                
+            column_type: java.lang.String
+        is_shipment_delivered_today:
+            column_definition: |
+                from java.util import Date
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd")
+                result = 0
+                d2 = Date()
+                d1 = Date()
+                if data['data']['status'].upper() in ('DELIVERED', 'DELIVERY_UPDATE'):
+                    d1 = Date(data['updatedAt'])                          
+                    if sdf.format(d1)==sdf.format(d2):
+                        result=1
+                if data.get('shipment') is not None:
+                    for shipment in data.get('shipment'):
+                        if shipment['status'].upper() == 'DELIVERED' or shipment['status'].upper() == 'DELIVERY_UPDATE':
+                            d1 = Date(shipment['updated_at'])
+                            if sdf.format(d1)==sdf.format(d2):
+                                    result=1
+            column_type: java.lang.Integer
+        cpd:
+            column_definition: |
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd")
+                cpd = None
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['customer_promise_date'] != '' and shipment['status'] == 'expected' and shipment['customer_promise_date'] is not None:
+                                d1 = shipment['customer_promise_date']
+                                d2 = sdf.parse(d1)
+                                cpd = sdf.format(d2)
+                            else:
+                                d3 = data['data'].get('customer_sla')
+                                d4 = sdf.parse(d3)
+                                cpd = sdf.format(d4)
+                result = cpd
+            column_type: java.lang.String
+        lpd:
+            column_definition: |
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd")
+                lpd = None
+                if data.get('shipment') is not None:
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if shipment['logistics_promise_date'] != '' and shipment['status'] == 'expected' and shipment['logistics_promise_date'] is not None:
+                                d1 = shipment['logistics_promise_date']
+                                d2 = sdf.parse(d1)
+                                lpd = sdf.format(d2)
+                            else:
+                                d1 = data['data'].get('design_sla')
+                                d2 = sdf.parse(d1)
+                                lpd = sdf.format(d2)
+                result = lpd
+            column_type: java.lang.String
+        newcpd:
+            column_definition: |
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd")
+                d1 = data['data'].get('customer_sla')
+                d2 = sdf.parse(d1)
+                newcpd = sdf.format(d2)
+                result = newcpd
+            column_type: java.lang.String
+        delivered_date:
+            column_definition: "from java.util import Date\nfrom java.text import SimpleDateFormat\nif data['data']['status'].upper() in ('DELIVERED','DELIVERY_UPDATE'):\n\tresult =data['data']['updated_at']\nelse:\n\tif data.get('shipment') is not None:\n\t\tfor shipment in data.get('shipment'):\n\t\t\tif shipment['status'].upper() in ('DELIVERED','DELIVERY_UPDATE'):\n\t\t\t\tsdf = SimpleDateFormat(\"yyyy-MM-dd'T'HH:mm:ssZ\")\n\t\t\t\td1 = shipment['updated_at']\n\t\t\t\tresult = sdf.format(d1)"
+            column_type: java.lang.String
+        is_shipment_received_today:
+            column_definition: |
+                from java.util import Date
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd")
+                result = 0
+                d2 = Date()
+                d1 = Date()
+                if data['data']['status'].upper() == 'RECEIVED' and data['data']['current_address']['type'] == 'DELIVERY_HUB':
+                    d1 = Date(data['updatedAt'])                          
+                    if sdf.format(d1)==sdf.format(d2):
+                        result=1
+                if data.get('shipment') is not None:
+                    for shipment in data.get('shipment'):
+                        if shipment['status'].upper() == 'RECEIVED' and shipment['current_address_type'] == 'DELIVERY_HUB':
+                            d1 = Date(shipment['updated_at'])
+                            d2 = Date()
+                            if sdf.format(d1)==sdf.format(d2):
+                                result=1
+            column_type: java.lang.Integer
+        is_shipment_ofd_today:
+            column_definition: |
+                from java.util import Date
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd")
+                result = 0
+                d2 = Date()
+                d1 = Date()
+                if data['data']['status'].upper() in ('OUT_FOR_DELIVERY'):
+                    d1 = Date(data['updatedAt'])                          
+                    if sdf.format(d1)==sdf.format(d2):
+                        result=1
+                elif data.get('shipment') is not None:
+                    for shipment in data.get('shipment'):
+                        if shipment['status'].upper() == 'OUT_FOR_DELIVERY' and d1 < Date(shipment['updated_at']):
+                            d1 = Date(shipment['updated_at'])
+                            if sdf.format(d1)==sdf.format(d2):
+                                result=1
+            column_type: java.lang.Integer
+        source_address_city:
+            column_definition: |
+                result = ''
+                if data.get('source_geo') is not None:
+                    result = data['source_geo'].get('city')
+            column_type: java.lang.String
+        dg_flag:
+            column_definition: |
+                result= 'No'
+                if data['data']['attributes'] is not None:
+                    for attributes in data['data'].get('attributes'):
+                        if attributes == 'dangerous':
+                            result = 'Yes'
+            column_type: java.lang.String
+        payment_type:
+            column_definition: data['data']['payment_type']
+            column_type: java.lang.String
+        payment_mode:
+            column_definition: |
+                result = ''
+                if data['data']['payment'] is not None:
+                    if data['data']['payment']['payment_details'] is not None:
+                        result = data['data']['payment']['payment_details'][0]['mode']
+            column_type: java.lang.String            
+        dh_pending_status:
+            column_definition: |
+                import java.text.ParseException
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+                lv_updatedat = sdf.parse("1970-01-01 00:00:00.000")
+                lv_status = ''
+                lv_current_address_type = ''
+                lv_shipment_type = data['data']['shipment_type']
+                pl = ''
+                if data.get('associated_shipment') is not None:
+                    if len(data['associated_shipment']) > 0:
+                        for associated_shipment in data['associated_shipment']:
+                            if associated_shipment['shipment_type'] is not None and associated_shipment['shipment_type'].lower() in ('approved_rto','unapproved_rto','rvp'):
+                                lv_shipment_type = 'merchant_return'
+                if data.get('shipment') is not None and lv_shipment_type == 'forward':
+                    if len(data['shipment']) > 0:
+                        for shipment in data['shipment']:
+                            if (sdf.format(shipment['updated_at']) > sdf.format(lv_updatedat) or shipment['status'].upper() in ('DELIVERED','DELIVERY_UPDATE') ) and lv_status.upper() not in ('DELIVERED','DELIVERY_UPDATE'):
+                                lv_status = shipment['status']
+                                lv_updatedat = (shipment['updated_at'])
+                                lv_current_address_type = shipment['current_address_type']
+                if sdf.format(data['updatedAt']) > sdf.format(lv_updatedat) and lv_status.upper() not in ('DELIVERED','DELIVERY_UPDATE'):
+                    lv_status = data['data']['status']
+                    lv_current_address_type = data['data']['current_address']['type']
+                    lv_updatedat = (data['updatedAt'])
+                if lv_shipment_type == 'forward':
+                        if lv_status.upper() in ('DELIVERED','DELIVERY_UPDATE'):
+                            pl = 'Delivered'
+                        elif lv_current_address_type == 'DELIVERY_HUB':
+                            if data.get('shipment') is not None:
+                                for shipment in data.get('shipment'):
+                                    if shipment['status'].upper() == 'OUT_FOR_DELIVERY':
+                                        pl = 'Pending@DH after ofd'
+                            elif lv_status.find('undelivered_'):
+                                pl = 'Pending@DH before ofd'
+                result = pl
+            column_type: java.lang.String
+        merchant_reference_id:
+            column_definition: |
+                result = ''
+                if data.get('logistics') is not None:
+                    result = data.get('logistics').get('merchant_reference_id')
+            column_type: java.lang.String  
+        merchant_code:
+            column_definition: |
+                result = ''
+                if data.get('logistics') is not None:
+                    result = data.get('logistics').get('merchant_id')
+            column_type: java.lang.String  
+        asso_ship_vndr_track_id:
+            column_definition: |
+                r = ''
+                if data.get('associated_shipment') is not None:
+                    if data['associated_shipment'].size() > 0:
+                        for associated_shipment in data['associated_shipment']:
+                            r = str(associated_shipment['vendor_tracking_id'])
+                result = r
+            column_type: java.lang.String
+        is_large:
+            column_definition: |
+                result = 'No'
+                if data.get('shipment_static') is not None:
+                    if data['shipment_static']['origin_facility_name'] is not None and data['shipment_static']['origin_facility_name'].find("large") != -1:
+                        result = 'Yes'
+            column_type: java.lang.String
+        rto_v2_created_datetime:
+            column_definition: |
+                from java.util import Date
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS+05:30")
+                lv_rto_create_date = None
+                if data['data']['shipment_type'] is not None and data['data']['shipment_type'].lower() in ('approved_rto','unapproved_rto'):
+                    lv_rto_create_date = data['updatedAt']
+                    if data.get('shipment') is not None:
+                        for shipment in data.get('shipment'):
+                            if shipment['shipment_type'] is not None and shipment['shipment_type'].lower() in ('approved_rto','unapproved_rto') and sdf.format(shipment['updated_at']) < sdf.format(lv_rto_create_date):
+                                lv_rto_create_date = shipment['updated_at']
+                    result = sdf.format(lv_rto_create_date)
+            column_type: java.lang.String
+        rto_v2_completed_datetime:
+            column_definition: |
+                from java.util import Date
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS+05:30")
+                if data['data']['shipment_type'].lower() in ('approved_rto','unapproved_rto') and data['data']['status'].lower() in ('returned_to_seller','received_by_merchant','delivered','delivery_update'):
+                    result = sdf.format(data['updatedAt'])
+            column_type: java.lang.String
+        rto_origin_facility:
+            column_definition: |
+                from java.util import Date
+                from java.text import SimpleDateFormat
+                sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+                lv_rto_create_date = None
+                lv_current_faclity_name = None
+                if data['data']['shipment_type'] is not None and data['data']['shipment_type'].lower() in ('approved_rto','unapproved_rto'):
+                    lv_rto_create_date = data['updatedAt']
+                    if data.get('current_facility') is not None:
+                        lv_current_faclity_name = data['current_facility']['name']
+                    if data.get('shipment') is not None:
+                        for shipment in data.get('shipment'):
+                            if shipment['shipment_type'] is not None and shipment['shipment_type'].lower() in ('approved_rto','unapproved_rto') and sdf.format(shipment['updated_at']) < sdf.format(lv_rto_create_date):
+                                lv_rto_create_date = shipment['updated_at']
+                                if shipment.get('current_facility') is not None:
+                                    lv_current_faclity_name = shipment['current_facility']['name']
+                    result = lv_current_faclity_name
+            column_type: java.lang.String    
+        shipment_value: 
+            column_definition: |
+                result = 0
+                if data['data']['value']['value'] is not None:
+                    result = int(data['data']['value']['value'])
+            column_type: java.lang.Integer
+        ofd_attempts: 
+            column_definition: |
+                lv_ofd_count = 0
+                if data['data']['status'].lower() == 'out_for_delivery':
+                    lv_ofd_count = 1
+                if data.get('shipment') is not None:
+                    for shipment in data.get('shipment'):
+                        if data['updatedAt'] != shipment['updated_at'] and shipment['status'].lower() == 'out_for_delivery':
+                            lv_ofd_count = lv_ofd_count + 1
+                result = lv_ofd_count
+            column_type: java.lang.Integer
+        order_id:
+            column_definition: |
+                d = ''
+                result=''
+                if data.get('order_item') is not None:
+                    d = str(data['order_item'].get('Order_ID'))
+                elif data.get('associated_shipment') is not None:
+                    if data['associated_shipment'].size() > 0:
+                        for associated_shipment in data['associated_shipment']:
+                            d = str(associated_shipment['order_id'])
+                result=d
+            column_type: java.lang.String
+        customer_name:
+            column_definition: |
+                result = ''
+                if data.get('user_contact') is not None:
+                    result = str(data['user_contact']['user_name'])
+            column_type: java.lang.String
+        customer_address:
+            column_definition: |
+                result = ''
+                lv_address = ''
+                if data.get('user_contact') is not None:
+                    if data['user_contact']['user_address'] is not None:
+                        if data['user_contact']['user_address']['addressLine1'] is not None:
+                            lv_address = str(data['user_contact']['user_address']['addressLine1']) + ', '
+                        if data['user_contact']['user_address']['addressLine2'] is not None:
+                            lv_address = lv_address + str(data['user_contact']['user_address']['addressLine2']) + ', '
+                        if data['user_contact']['user_address']['city'] is not None:
+                            lv_address = lv_address + str(data['user_contact']['user_address']['city']) + ', '
+                        if data['user_contact']['user_address']['state']  is not None:
+                            lv_address = lv_address + str(data['user_contact']['user_address']['state']) + ', '
+                        if data['user_contact']['user_address']['country'] is not None:
+                            lv_address = lv_address + str(data['user_contact']['user_address']['country']) + ', '
+                        if data['user_contact']['user_address']['pincode'] is not None:
+                            lv_address = lv_address + 'pincode: ' + str(data['user_contact']['user_address']['pincode'])
+                result = lv_address
+            column_type: java.lang.String
+        customer_contact_nos:
+            column_definition: |
+                result = ''
+                if data.get('user_contact') is not None:
+                    if data['user_contact']['communications'] is not None:
+                        for communications in data['user_contact']['communications']:
+                            if result == '':
+                                result = communications['actualInput']
+                            else: 
+                                result = result + ', ' + communications['actualInput']
+            column_type: java.lang.String
+        customer_address_id:
+            column_definition: |
+                result = ''
+                if data.get('user_contact') is not None:
+                    result = str(data['user_contact']['address_id'])
+            column_type: java.lang.String
+        customer_account_id:
+            column_definition: |
+                result = ''
+                if data.get('user_contact') is not None:
+                    result = str(data['user_contact']['account_id'])
+            column_type: java.lang.String
+        product_title:
+            column_definition: |
+                result = ''
+                if data.get('product_product') is not None:
+                    result = str(data['product_product']['title'])
+            column_type: java.lang.String
+        assigned_delivery_hub_name:
+            column_definition: |
+                if data.get('shipment') is not None:
+                    for shipment in data.get('shipment'):
+                        if shipment['assigned_hub_type'] is not None and shipment['assigned_hub_type'].upper() == 'DELIVERY_HUB':
+                            result = shipment['assigned_hub_name']
+            column_type: java.lang.String
+        assigned_delivery_hub_display_name:
+            column_definition: |
+                if data.get('shipment') is not None:
+                    for shipment in data.get('shipment'):
+                        if shipment['assigned_hub_type'] is not None and shipment['assigned_hub_type'].upper() == 'DELIVERY_HUB':
+                            result = shipment['assigned_hub_display_name']
+            column_type: java.lang.String
+        assigned_delivery_hub_zone:
+            column_definition: |
+                if data.get('shipment') is not None:
+                    for shipment in data.get('shipment'):
+                        if shipment['assigned_hub_type'] is not None and shipment['assigned_hub_type'].upper() == 'DELIVERY_HUB':
+                            result = shipment['assigned_hub_zone']
+            column_type: java.lang.String
+sink_bolt:
+    name: elastic-storage-bolt
+    type: elasticsearch-bolt
+    parallelism_hint: 14
+    host_name: 10.32.201.153,10.34.81.139,10.32.49.127,10.32.105.76,10.33.33.68,10.32.29.72,10.32.57.76
+    port: 9300
+    cluster_name: prod-fdpanalytics-es
+    index_name: f_scp_ekl::shipment_live_fact
+    type_name: data
+    id_keys:
+        - shipment_id
+
+kafka_bolt:
+    name: Kafka-bolt
+    type: kafka-bolt
+    parallelism_hint: 28
+    zk_hosts:
+        - "10.32.185.202:2181"
+        - "10.32.41.70:2181"
+        - "10.32.45.164:2181/prod-fdpflow-kafka-b"
+    producer_type: sync
+    request_required_acks: 2
+    serializer_class: kafka.serializer.DefaultEncoder
+    partitioner_class: com.flipkart.bigfoot.fireball.engine.pipeline.bolt.utils.RetryKafkaPartitioner
+    compression_codec: snappy
+    connect_timeout_ms: 30000
+    socket_timeout_ms: 120000
+    storage_batch_size: 15
