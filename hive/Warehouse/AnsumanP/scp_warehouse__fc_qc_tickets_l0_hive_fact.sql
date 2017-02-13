@@ -63,7 +63,10 @@ ticket_sent_2_supp_ret_time_key,
 ticket_status_wh_accepted,
 ticket_wh_accepted_time,
 ticket_wh_accepted_date_key,
-ticket_wh_accepted_time_key
+ticket_wh_accepted_time_key,
+ticket_bd_accepted_time,
+ticket_bd_accepted_date_key,
+ticket_bd_accepted_time_key
 from (
 select 'wsr' as warehouse_company,
 -- qc_ticket
@@ -88,95 +91,70 @@ qt.data.wid as qc_ticket_wid,
 lookupkey('product_detail_product_id',concat(qt.data.product_id,'wsr')) as qc_ticket_product_key,
 lookupkey('warehouse_id',qt.data.warehouse_id) as qc_ticket_warehouse_id_key,
 -- ticket_status
-ts_created.status as ticket_status_created,
-ts_created.status_time as ticket_created_time,
-lookup_date(ts_created.status_time) as ticket_created_date_key,
-lookup_time(ts_created.status_time) as ticket_created_time_key,
-ts_pending_reco.status as ticket_status_pending_reco,
-ts_pending_reco.status_time as ticket_pending_reco_time,
-lookup_date(ts_pending_reco.status_time) as ticket_pending_reco_date_key,
-lookup_time(ts_pending_reco.status_time) as ticket_pending_reco_time_key,
-ts_bd_escalated.status as ticket_status_bd_escalated,
-ts_bd_escalated.status_time as ticket_bd_escalated_time,
-lookup_date(ts_bd_escalated.status_time) as ticket_bd_escalated_date_key,
-lookup_time(ts_bd_escalated.status_time) as ticket_bd_escalated_time_key,
-ts_mfl.status as ticket_status_marked_4_liquidn,
-ts_mfl.status_time as ticket_marked_4_liquidn_time,
-lookup_date(ts_mfl.status_time) as ticket_marked_4_liquidn_date_key,
-lookup_time(ts_mfl.status_time) as ticket_marked_4_liquidn_time_key,
-ts_mfsr.status as ticket_status_marked_4_supplier_return,
-ts_mfsr.status_time as ticket_marked_4_supplier_ret_time,
-lookup_date(ts_mfsr.status_time) as ticket_marked_4_sup_ret_date_key,
-lookup_time(ts_mfsr.status_time) as ticket_marked_4_sup_ret_time_key,
-ts_inv.status as ticket_status_invalid,
-ts_inv.status_time as ticket_invalid_time,
-lookup_date(ts_inv.status_time) as ticket_invalid_date_key,
-lookup_time(ts_inv.status_time) as ticket_invalid_time_key,
-ts_lost.status as ticket_final_status_lost,
-ts_lost.status_time as ticket_lost_time,
-lookup_date(ts_lost.status_time) as ticket_lost_date_key,
-lookup_time(ts_lost.status_time) as ticket_lost_time_key,
-ts_rej.status as ticket_final_status_rejected,
-ts_rej.status_time as ticket_reject_time,
-lookup_date(ts_rej.status_time) as ticket_reject_date_key,
-lookup_time(ts_rej.status_time) as ticket_reject_time_key,
-ts_stl.status as ticket_status_sent_2_liquidn,
-ts_stl.status_time as ticket_sent_2_liquidn_time,
-lookup_date(ts_stl.status_time) as ticket_sent_2_liquidn_date_key,
-lookup_time(ts_stl.status_time) as ticket_sent_2_liquidn_time_key,
-ts_stsr.status as ticket_status_sent_2_supp_ret,
-ts_stsr.status_time as ticket_sent_2_supp_ret_time,
-lookup_date(ts_stsr.status_time) as ticket_sent_2_supp_ret_date_key,
-lookup_time(ts_stsr.status_time) as ticket_sent_2_supp_ret_time_key,
-ts_wa.status as ticket_status_wh_accepted,
-ts_wa.status_time as ticket_wh_accepted_time,
-lookup_date(ts_wa.status_time) as ticket_wh_accepted_date_key,
-lookup_time(ts_wa.status_time) as ticket_wh_accepted_time_key
+'' as ticket_status_created,
+ticket_status.created_time as ticket_created_time,
+lookup_date(ticket_status.created_time) as ticket_created_date_key,
+lookup_time(ticket_status.created_time) as ticket_created_time_key,
+'' as ticket_status_pending_reco,
+ticket_status.pending_reco_time as ticket_pending_reco_time,
+lookup_date(ticket_status.pending_reco_time) as ticket_pending_reco_date_key,
+lookup_time(ticket_status.pending_reco_time) as ticket_pending_reco_time_key,
+'' as ticket_status_bd_escalated,
+ticket_status.bd_escalated_time as ticket_bd_escalated_time,
+lookup_date(ticket_status.bd_escalated_time) as ticket_bd_escalated_date_key,
+lookup_time(ticket_status.bd_escalated_time) as ticket_bd_escalated_time_key,
+'' as ticket_status_marked_4_liquidn,
+ticket_status.marked_for_liquidation_time as ticket_marked_4_liquidn_time,
+lookup_date(ticket_status.marked_for_liquidation_time) as ticket_marked_4_liquidn_date_key,
+lookup_time(ticket_status.marked_for_liquidation_time) as ticket_marked_4_liquidn_time_key,
+'' as ticket_status_marked_4_supplier_return,
+ticket_status.marked_for_supplier_return_time as ticket_marked_4_supplier_ret_time,
+lookup_date(ticket_status.marked_for_supplier_return_time) as ticket_marked_4_sup_ret_date_key,
+lookup_time(ticket_status.marked_for_supplier_return_time) as ticket_marked_4_sup_ret_time_key,
+'' as ticket_status_invalid,
+ticket_status.invalid_time as ticket_invalid_time,
+lookup_date(ticket_status.invalid_time) as ticket_invalid_date_key,
+lookup_time(ticket_status.invalid_time) as ticket_invalid_time_key,
+'' as ticket_final_status_lost,
+ticket_status.lost_time as ticket_lost_time,
+lookup_date(ticket_status.lost_time) as ticket_lost_date_key,
+lookup_time(ticket_status.lost_time) as ticket_lost_time_key,
+'' as ticket_final_status_rejected,
+ticket_status.rejected_time as ticket_reject_time,
+lookup_date(ticket_status.rejected_time) as ticket_reject_date_key,
+lookup_time(ticket_status.rejected_time) as ticket_reject_time_key,
+'' as ticket_status_sent_2_liquidn,
+ticket_status.sent_to_liquidation_time as ticket_sent_2_liquidn_time,
+lookup_date(ticket_status.sent_to_liquidation_time) as ticket_sent_2_liquidn_date_key,
+lookup_time(ticket_status.sent_to_liquidation_time) as ticket_sent_2_liquidn_time_key,
+'' as ticket_status_sent_2_supp_ret,
+ticket_status.sent_to_supplier_return_time as ticket_sent_2_supp_ret_time,
+lookup_date(ticket_status.sent_to_supplier_return_time) as ticket_sent_2_supp_ret_date_key,
+lookup_time(ticket_status.sent_to_supplier_return_time) as ticket_sent_2_supp_ret_time_key,
+'' as ticket_status_wh_accepted,
+ticket_status.warehouse_accepted_time as ticket_wh_accepted_time,
+lookup_date(ticket_status.warehouse_accepted_time) as ticket_wh_accepted_date_key,
+lookup_time(ticket_status.warehouse_accepted_time) as ticket_wh_accepted_time_key,
+ticket_status.bd_accepted_time as ticket_bd_accepted_time,
+lookup_date(ticket_status.bd_accepted_time) as ticket_bd_accepted_date_key,
+lookup_time(ticket_status.bd_accepted_time) as ticket_bd_accepted_time_key
 from bigfoot_snapshot.dart_wsr_scp_warehouse_qc_ticket_1_view as qt
 left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='created' group by data.ticket_id,data.status ) ts_created
-on qt.entityid = ts_created.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='pending_reco' group by data.ticket_id,data.status ) ts_pending_reco
-on qt.entityid = ts_pending_reco.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='bd_escalated' group by data.ticket_id,data.status ) ts_bd_escalated
-on qt.entityid = ts_bd_escalated.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='marked_for_liquidation' group by data.ticket_id,data.status ) ts_mfl
-on qt.entityid = ts_mfl.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='marked_for_supplier_return' group by data.ticket_id,data.status ) ts_mfsr
-on qt.entityid = ts_mfsr.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='invalid' group by data.ticket_id,data.status ) ts_inv
-on qt.entityid = ts_inv.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='lost' group by data.ticket_id,data.status ) ts_lost
-on qt.entityid = ts_lost.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='rejected' group by data.ticket_id,data.status ) ts_rej
-on qt.entityid = ts_rej.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='sent_to_liquidation' group by data.ticket_id,data.status ) ts_stl
-on qt.entityid = ts_stl.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='sent_to_supplier_return' group by data.ticket_id,data.status ) ts_stsr
-on qt.entityid = ts_stsr.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view where data.status='warehouse_accepted' group by data.ticket_id,data.status ) ts_wa
-on qt.entityid = ts_wa.ticket_id
+(select data.ticket_id as ticket_id,
+max(case when data.status = 'created' then data.status_time end) as created_time,
+max(case when data.status = 'bd_accepted' then data.status_time end) as bd_accepted_time,
+max(case when data.status = 'warehouse_accepted' then data.status_time end) as warehouse_accepted_time,
+max(case when data.status = 'sent_to_supplier_return' then data.status_time end) as sent_to_supplier_return_time,
+max(case when data.status = 'lost' then data.status_time end) as lost_time,
+max(case when data.status = 'rejected' then data.status_time end) as rejected_time,
+max(case when data.status = 'invalid' then data.status_time end) as invalid_time,
+max(case when data.status = 'sent_to_liquidation' then data.status_time end) as sent_to_liquidation_time,
+max(case when data.status = 'marked_for_supplier_return' then data.status_time end) as marked_for_supplier_return_time,
+max(case when data.status = 'marked_for_liquidation' then data.status_time end) as marked_for_liquidation_time,
+max(case when data.status = 'bd_escalated' then data.status_time end) as bd_escalated_time,
+max(case when data.status = 'pending_reco' then data.status_time end) as pending_reco_time
+from bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view 
+group  by data.ticket_id) as ticket_status on qt.entityid = ticket_status.ticket_id
 
 UNION ALL
 
@@ -203,92 +181,68 @@ qt2.data.wid as qc_ticket_wid,
 lookupkey('product_detail_product_id',concat(qt2.data.product_id,'fki')) as qc_ticket_product_key,
 lookupkey('warehouse_id',qt2.data.warehouse_id) as qc_ticket_warehouse_id_key,
 -- ticket_status
-ts_created.status as ticket_status_created,
-ts_created.status_time as ticket_created_time,
-lookup_date(ts_created.status_time) as ticket_created_date_key,
-lookup_time(ts_created.status_time) as ticket_created_time_key,
-ts_pending_reco.status as ticket_status_pending_reco,
-ts_pending_reco.status_time as ticket_pending_reco_time,
-lookup_date(ts_pending_reco.status_time) as ticket_pending_reco_date_key,
-lookup_time(ts_pending_reco.status_time) as ticket_pending_reco_time_key,
-ts_bd_escalated.status as ticket_status_bd_escalated,
-ts_bd_escalated.status_time as ticket_bd_escalated_time,
-lookup_date(ts_bd_escalated.status_time) as ticket_bd_escalated_date_key,
-lookup_time(ts_bd_escalated.status_time) as ticket_bd_escalated_time_key,
-ts_mfl.status as ticket_status_marked_4_liquidn,
-ts_mfl.status_time as ticket_marked_4_liquidn_time,
-lookup_date(ts_mfl.status_time) as ticket_marked_4_liquidn_date_key,
-lookup_time(ts_mfl.status_time) as ticket_marked_4_liquidn_time_key,
-ts_mfsr.status as ticket_status_marked_4_supplier_return,
-ts_mfsr.status_time as ticket_marked_4_supplier_ret_time,
-lookup_date(ts_mfsr.status_time) as ticket_marked_4_sup_ret_date_key,
-lookup_time(ts_mfsr.status_time) as ticket_marked_4_sup_ret_time_key,
-ts_inv.status as ticket_status_invalid,
-ts_inv.status_time as ticket_invalid_time,
-lookup_date(ts_inv.status_time) as ticket_invalid_date_key,
-lookup_time(ts_inv.status_time) as ticket_invalid_time_key,
-ts_lost.status as ticket_final_status_lost,
-ts_lost.status_time as ticket_lost_time,
-lookup_date(ts_lost.status_time) as ticket_lost_date_key,
-lookup_time(ts_lost.status_time) as ticket_lost_time_key,
-ts_rej.status as ticket_final_status_rejected,
-ts_rej.status_time as ticket_reject_time,
-lookup_date(ts_rej.status_time) as ticket_reject_date_key,
-lookup_time(ts_rej.status_time) as ticket_reject_time_key,
-ts_stl.status as ticket_status_sent_2_liquidn,
-ts_stl.status_time as ticket_sent_2_liquidn_time,
-lookup_date(ts_stl.status_time) as ticket_sent_2_liquidn_date_key,
-lookup_time(ts_stl.status_time) as ticket_sent_2_liquidn_time_key,
-ts_stsr.status as ticket_status_sent_2_supp_ret,
-ts_stsr.status_time as ticket_sent_2_supp_ret_time,
-lookup_date(ts_stsr.status_time) as ticket_sent_2_supp_ret_date_key,
-lookup_time(ts_stsr.status_time) as ticket_sent_2_supp_ret_time_key,
-ts_wa.status as ticket_status_wh_accepted,
-ts_wa.status_time as ticket_wh_accepted_time,
-lookup_date(ts_wa.status_time) as ticket_wh_accepted_date_key,
-lookup_time(ts_wa.status_time) as ticket_wh_accepted_time_key
+'' as ticket_status_created,
+ticket_status.created_time as ticket_created_time,
+lookup_date(ticket_status.created_time) as ticket_created_date_key,
+lookup_time(ticket_status.created_time) as ticket_created_time_key,
+'' as ticket_status_pending_reco,
+ticket_status.pending_reco_time as ticket_pending_reco_time,
+lookup_date(ticket_status.pending_reco_time) as ticket_pending_reco_date_key,
+lookup_time(ticket_status.pending_reco_time) as ticket_pending_reco_time_key,
+'' as ticket_status_bd_escalated,
+ticket_status.bd_escalated_time as ticket_bd_escalated_time,
+lookup_date(ticket_status.bd_escalated_time) as ticket_bd_escalated_date_key,
+lookup_time(ticket_status.bd_escalated_time) as ticket_bd_escalated_time_key,
+'' as ticket_status_marked_4_liquidn,
+ticket_status.marked_for_liquidation_time as ticket_marked_4_liquidn_time,
+lookup_date(ticket_status.marked_for_liquidation_time) as ticket_marked_4_liquidn_date_key,
+lookup_time(ticket_status.marked_for_liquidation_time) as ticket_marked_4_liquidn_time_key,
+'' as ticket_status_marked_4_supplier_return,
+ticket_status.marked_for_supplier_return_time as ticket_marked_4_supplier_ret_time,
+lookup_date(ticket_status.marked_for_supplier_return_time) as ticket_marked_4_sup_ret_date_key,
+lookup_time(ticket_status.marked_for_supplier_return_time) as ticket_marked_4_sup_ret_time_key,
+'' as ticket_status_invalid,
+ticket_status.invalid_time as ticket_invalid_time,
+lookup_date(ticket_status.invalid_time) as ticket_invalid_date_key,
+lookup_time(ticket_status.invalid_time) as ticket_invalid_time_key,
+'' as ticket_final_status_lost,
+ticket_status.lost_time as ticket_lost_time,
+lookup_date(ticket_status.lost_time) as ticket_lost_date_key,
+lookup_time(ticket_status.lost_time) as ticket_lost_time_key,
+'' as ticket_final_status_rejected,
+ticket_status.rejected_time as ticket_reject_time,
+lookup_date(ticket_status.rejected_time) as ticket_reject_date_key,
+lookup_time(ticket_status.rejected_time) as ticket_reject_time_key,
+'' as ticket_status_sent_2_liquidn,
+ticket_status.sent_to_liquidation_time as ticket_sent_2_liquidn_time,
+lookup_date(ticket_status.sent_to_liquidation_time) as ticket_sent_2_liquidn_date_key,
+lookup_time(ticket_status.sent_to_liquidation_time) as ticket_sent_2_liquidn_time_key,
+'' as ticket_status_sent_2_supp_ret,
+ticket_status.sent_to_supplier_return_time as ticket_sent_2_supp_ret_time,
+lookup_date(ticket_status.sent_to_supplier_return_time) as ticket_sent_2_supp_ret_date_key,
+lookup_time(ticket_status.sent_to_supplier_return_time) as ticket_sent_2_supp_ret_time_key,
+'' as ticket_status_wh_accepted,
+ticket_status.warehouse_accepted_time as ticket_wh_accepted_time,
+lookup_date(ticket_status.warehouse_accepted_time) as ticket_wh_accepted_date_key,
+lookup_time(ticket_status.warehouse_accepted_time) as ticket_wh_accepted_time_key,
+ticket_status.bd_accepted_time as ticket_bd_accepted_time,
+lookup_date(ticket_status.bd_accepted_time) as ticket_bd_accepted_date_key,
+lookup_time(ticket_status.bd_accepted_time) as ticket_bd_accepted_time_key
 from bigfoot_snapshot.dart_fki_scp_warehouse_qc_ticket_1_view as qt2
 left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='created' group by data.ticket_id,data.status ) ts_created
-on qt2.entityid = ts_created.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='pending_reco' group by data.ticket_id,data.status ) ts_pending_reco
-on qt2.entityid = ts_pending_reco.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='bd_escalated' group by data.ticket_id,data.status ) ts_bd_escalated
-on qt2.entityid = ts_bd_escalated.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='marked_for_liquidation' group by data.ticket_id,data.status ) ts_mfl
-on qt2.entityid = ts_mfl.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='marked_for_supplier_return' group by data.ticket_id,data.status ) ts_mfsr
-on qt2.entityid = ts_mfsr.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='invalid' group by data.ticket_id,data.status ) ts_inv
-on qt2.entityid = ts_inv.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='lost' group by data.ticket_id,data.status ) ts_lost
-on qt2.entityid = ts_lost.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='rejected' group by data.ticket_id,data.status ) ts_rej
-on qt2.entityid = ts_rej.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='sent_to_liquidation' group by data.ticket_id,data.status ) ts_stl
-on qt2.entityid = ts_stl.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='sent_to_supplier_return' group by data.ticket_id,data.status ) ts_stsr
-on qt2.entityid = ts_stsr.ticket_id
-left join 
-(select data.ticket_id as ticket_id,data.status as status,max(data.status_time) as status_time from 
-bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view where data.status='warehouse_accepted' group by data.ticket_id,data.status ) ts_wa
-on qt2.entityid = ts_wa.ticket_id) t1;
+(select data.ticket_id as ticket_id,
+max(case when data.status = 'created' then data.status_time end) as created_time,
+max(case when data.status = 'bd_accepted' then data.status_time end) as bd_accepted_time,
+max(case when data.status = 'warehouse_accepted' then data.status_time end) as warehouse_accepted_time,
+max(case when data.status = 'sent_to_supplier_return' then data.status_time end) as sent_to_supplier_return_time,
+max(case when data.status = 'lost' then data.status_time end) as lost_time,
+max(case when data.status = 'rejected' then data.status_time end) as rejected_time,
+max(case when data.status = 'invalid' then data.status_time end) as invalid_time,
+max(case when data.status = 'sent_to_liquidation' then data.status_time end) as sent_to_liquidation_time,
+max(case when data.status = 'marked_for_supplier_return' then data.status_time end) as marked_for_supplier_return_time,
+max(case when data.status = 'marked_for_liquidation' then data.status_time end) as marked_for_liquidation_time,
+max(case when data.status = 'bd_escalated' then data.status_time end) as bd_escalated_time,
+max(case when data.status = 'pending_reco' then data.status_time end) as pending_reco_time
+from bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view 
+group  by data.ticket_id) ticket_status on qt2.entityid = ticket_status.ticket_id
+) t1;
