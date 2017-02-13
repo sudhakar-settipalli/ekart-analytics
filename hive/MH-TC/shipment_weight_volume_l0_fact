@@ -1,0 +1,136 @@
+INSERT OVERWRITE TABLE shipment_weight_volume_l0_fact
+select 
+data.vendor_tracking_id as vendor_tracking_id,
+data.created_at as shipment_created_at_datetime,
+data.assigned_address.id as assigned_hub_id,
+o.order_item_unit_tracking_id as old_vendor_tracking_id,
+IF(lower(data.source_address.type) = 'warehouse'
+, IF(lower(data.shipment_items[0].seller_id ) IN ('wsr','d591418b408940a0')
+,'WSR'
+, IF(lower(data.vendor_tracking_id) LIKE'%myn%'
+,'MYN'
+, IF(upper(data.vendor_tracking_id) LIKE'%JBN%'
+,'JBN'
+, IF(upper(data.vendor_tracking_id) LIKE'%YPM%'
+,'YEPME'
+, IF(upper(data.vendor_tracking_id) LIKE'%PTM%'
+,'PAYTM'
+, IF(upper(data.vendor_tracking_id) LIKE'%VNK%'
+,'VOONIK'
+, IF(upper(data.vendor_tracking_id) LIKE'%HOP%'
+,'HOPSCOTCH'
+, IF(upper(data.vendor_tracking_id) LIKE'%RLG%'
+,'RELIANCE_ADA'
+, IF(upper(data.vendor_tracking_id) LIKE'%PGN%'
+,'GOPIGEON'
+, IF(upper(data.vendor_tracking_id) LIKE'%HLK%'
+,'HEALTHKART'
+, IF(upper(data.vendor_tracking_id) LIKE'%MDR%'
+,'MADHURA'
+, IF(upper(data.vendor_tracking_id) LIKE'%MVK%'
+,'MR VOONIK'
+, IF(upper(data.vendor_tracking_id) LIKE'%CLQ%'
+,'TATA CLIQ'
+, IF(upper(data.vendor_tracking_id) LIKE'%SHP%'
+,'SHOPPERSSTOP','FA')))))))))))))
+)
+, IF(lower(data.source_address.type) = 'mp_non_fbf_seller'
+,'Non-FA'
+, IF(lower(data.source_address.type) = 'customer'
+, IF(lower(data.vendor_tracking_id) LIKE'%myn%'
+,'MYN'
+, IF(lower(data.shipment_items[0].seller_id ) IN ('wsr','d591418b408940a0')
+,'WSR'
+, IF(upper(data.vendor_tracking_id) LIKE'%JBN%'
+,'JBN'
+, IF(upper(data.vendor_tracking_id) LIKE'%YPM%'
+,'YEPME'
+, IF(upper(data.vendor_tracking_id) LIKE'%PTM%'
+,'PAYTM'
+, IF(upper(data.vendor_tracking_id) LIKE'%VNK%'
+,'VOONIK'
+, IF(upper(data.vendor_tracking_id) LIKE'%HOP%'
+,'HOPSCOTCH'
+, IF(upper(data.vendor_tracking_id) LIKE'%RLG%'
+,'RELIANCE_ADA'
+, IF(upper(data.vendor_tracking_id) LIKE'%PGN%'
+,'GOPIGEON'
+, IF(upper(data.vendor_tracking_id) LIKE'%HLK%'
+,'HEALTHKART'
+, IF(upper(data.vendor_tracking_id) LIKE'%MDR%'
+,'MADHURA'
+, IF(upper(data.vendor_tracking_id) LIKE'%MVK%'
+,'MR VOONIK'
+, IF(upper(data.vendor_tracking_id) LIKE'%CLQ%'
+,'TATA CLIQ'
+, IF(upper(data.vendor_tracking_id) LIKE'%SHP%'
+,'SHOPPERSSTOP'
+, IF(lower(data.destination_address.type) = 'warehouse'
+,'FA','Non-FA'))))))))))))))
+)
+,NULL)
+)) as seller_type,
+data.shipment_type as ekl_shipment_type,
+data.shipping_category as shipping_category,
+data.shipment_weight.physical as shipment_physical_weight,
+pr.profiled_length,
+pr.profiled_breadth,
+pr.profiled_height,
+null as profiled_weight,
+packing_box_used_outer_length*2.54 as warehouse_legth,
+packing_box_used_outer_breadth*2.54 as warehouse_breadth,
+packing_box_used_outer_height*2.54 as warehouse_height,
+box_actual_weight as warehouse_weight,
+seller_length,
+seller_breadth,
+seller_height,
+seller_weight,
+cr.wdecision_length    ,
+cr.wdecision_breadth   ,
+cr.wdecision_height    ,
+cr.wdecision_weight    ,
+data.contour_volume as contour_volume,
+cr.fsn,
+cr.category,
+IF(data.vendor_tracking_id = 'not_assigned' OR  data.vendor_tracking_id IS NULL ,'VNF',
+IF(data.vendor_id IN (200, 207, 242),'FSD','3PL')) AS shipment_carrier,
+data.status as current_status,
+data.sender_weight.physical as sender_weight,
+data.assigned_address.id as fsd_assigned_hub_id,
+lookupkey('facility_id',data.assigned_address.id) as fsd_assigned_hub_id_key,
+data.source_address.id as origin_facility_id,
+lookupkey('facility_id',data.source_address.id) as origin_facility_id_key
+from bigfoot_snapshot.dart_wsr_scp_ekl_shipment_4_view as source
+LEFT JOIN
+bigfoot_external_neo.scp_rrr__return_l1_fact as r
+on source.data.vendor_tracking_id=r.return_item_shipment_id
+LEFT JOIN
+bigfoot_external_neo.scp_oms__order_item_unit_s1_fact as o
+on o.order_item_id=r.order_item_id
+left join
+bigfoot_external_neo.scp_warehouse__fc_shipment_item_l0_hive_fact as fc
+ON fc.box_tracking_id=if(source.data.shipment_type NOT IN ('forward','aprroved_rto','unapproved_rto') or source.data.vendor_tracking_id like '%FMPR%',o.order_item_unit_tracking_id,source.data.vendor_tracking_id)
+left join 
+bigfoot_external_neo.scp_ekl__profiler_weight_volume_l0_hive_fact as pr
+on pr.vendor_tracking_id=if(source.data.shipment_type NOT IN ('forward','aprroved_rto','unapproved_rto') or source.data.vendor_tracking_id like '%FMPR%',o.order_item_unit_tracking_id,source.data.vendor_tracking_id)
+LEFT JOIN
+(
+select seller_length,seller_breadth,seller_height,seller_weight,vendortrackingid
+from
+(select 
+length as seller_length,
+breadth as seller_breadth,
+height as seller_height,
+weight as seller_weight,
+vendortrackingid,
+rank() over (partition by vendortrackingid order by history_created_at desc ) as latest_version
+from
+bigfoot_external_neo.scp_fulfillment__fulfillment_cartman_weight_history_fact
+where  ship_created_date_key > lookup_date(date_add(current_timestamp(),-120)) and weight_source_type = 'SELLER_PACKING_DETAILS'
+) as fcwh
+where fcwh.latest_version = 1
+) as c
+on c.vendortrackingid=if(source.data.shipment_type NOT IN ('forward','aprroved_rto','unapproved_rto') or source.data.vendor_tracking_id like '%FMPR%',o.order_item_unit_tracking_id,source.data.vendor_tracking_id)
+LEFT JOIN
+bigfoot_external_neo.scp_fulfillment__fulfillment_cartman_weight_fact as cr
+on cr.vendortrackingid=if(source.data.shipment_type NOT IN ('forward','aprroved_rto','unapproved_rto') or source.data.vendor_tracking_id like '%FMPR%',o.order_item_unit_tracking_id,source.data.vendor_tracking_id);
