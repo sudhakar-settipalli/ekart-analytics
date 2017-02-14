@@ -66,7 +66,18 @@ ticket_wh_accepted_date_key,
 ticket_wh_accepted_time_key,
 ticket_bd_accepted_time,
 ticket_bd_accepted_date_key,
-ticket_bd_accepted_time_key
+ticket_bd_accepted_time_key,
+bd_accepted_by,
+warehouse_accepted_by,
+sent_to_supplier_return_by,
+lost_by,
+rejected_by,
+invalid_by,
+sent_to_liquidation_by,
+marked_for_supplier_return_by,
+marked_for_liquidation_by,
+bd_escalated_by,
+pending_reco_by
 from (
 select 'wsr' as warehouse_company,
 -- qc_ticket
@@ -74,7 +85,7 @@ qt.entityid as qc_ticket_entity_id,
 qt.data.created_at as qc_ticket_created_at,
 lookup_date(qt.data.created_at) as qc_ticket_created_date_key,
 lookup_time(qt.data.created_at) as qc_ticket_created_time_key,
-qt.data.created_by as qc_ticket_created_by,
+ticket_status.created_by as qc_ticket_created_by,
 qt.data.goods_receipt_note_id as goods_receipt_note_id,
 qt.data.id as qc_ticket_id,
 qt.data.lost_quantity as qc_ticket_lost_quantity,
@@ -137,7 +148,18 @@ lookup_date(ticket_status.warehouse_accepted_time) as ticket_wh_accepted_date_ke
 lookup_time(ticket_status.warehouse_accepted_time) as ticket_wh_accepted_time_key,
 ticket_status.bd_accepted_time as ticket_bd_accepted_time,
 lookup_date(ticket_status.bd_accepted_time) as ticket_bd_accepted_date_key,
-lookup_time(ticket_status.bd_accepted_time) as ticket_bd_accepted_time_key
+lookup_time(ticket_status.bd_accepted_time) as ticket_bd_accepted_time_key,
+ticket_status.bd_accepted_by,
+ticket_status.warehouse_accepted_by,
+ticket_status.sent_to_supplier_return_by,
+ticket_status.lost_by,
+ticket_status.rejected_by,
+ticket_status.invalid_by,
+ticket_status.sent_to_liquidation_by,
+ticket_status.marked_for_supplier_return_by,
+ticket_status.marked_for_liquidation_by,
+ticket_status.bd_escalated_by,
+ticket_status.pending_reco_by
 from bigfoot_snapshot.dart_wsr_scp_warehouse_qc_ticket_1_view as qt
 left join 
 (select data.ticket_id as ticket_id,
@@ -152,8 +174,20 @@ max(case when data.status = 'sent_to_liquidation' then data.status_time end) as 
 max(case when data.status = 'marked_for_supplier_return' then data.status_time end) as marked_for_supplier_return_time,
 max(case when data.status = 'marked_for_liquidation' then data.status_time end) as marked_for_liquidation_time,
 max(case when data.status = 'bd_escalated' then data.status_time end) as bd_escalated_time,
-max(case when data.status = 'pending_reco' then data.status_time end) as pending_reco_time
-from bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_0_view 
+max(case when data.status = 'pending_reco' then data.status_time end) as pending_reco_time,
+max(case when data.status = 'created' then data.created_by end) as created_by,
+max(case when data.status = 'bd_accepted' then data.created_by end) as bd_accepted_by,
+max(case when data.status = 'warehouse_accepted' then data.created_by end) as warehouse_accepted_by,
+max(case when data.status = 'sent_to_supplier_return' then data.created_by end) as sent_to_supplier_return_by,
+max(case when data.status = 'lost' then data.created_by end) as lost_by,
+max(case when data.status = 'rejected' then data.created_by end) as rejected_by,
+max(case when data.status = 'invalid' then data.created_by end) as invalid_by,
+max(case when data.status = 'sent_to_liquidation' then data.created_by end) as sent_to_liquidation_by,
+max(case when data.status = 'marked_for_supplier_return' then data.created_by end) as marked_for_supplier_return_by,
+max(case when data.status = 'marked_for_liquidation' then data.created_by end) as marked_for_liquidation_by,
+max(case when data.status = 'bd_escalated' then data.created_by end) as bd_escalated_by,
+max(case when data.status = 'pending_reco' then data.created_by end) as pending_reco_by
+from bigfoot_snapshot.dart_wsr_scp_warehouse_ticket_status_1_view 
 group  by data.ticket_id) as ticket_status on qt.entityid = ticket_status.ticket_id
 
 UNION ALL
@@ -164,7 +198,7 @@ qt2.entityid as qc_ticket_entity_id,
 qt2.data.created_at as qc_ticket_created_at,
 lookup_date(qt2.data.created_at) as qc_ticket_created_date_key,
 lookup_time(qt2.data.created_at) as qc_ticket_created_time_key,
-qt2.data.created_by as qc_ticket_created_by,
+ticket_status.created_by as qc_ticket_created_by,
 qt2.data.goods_receipt_note_id as goods_receipt_note_id,
 qt2.data.id as qc_ticket_id,
 qt2.data.lost_quantity as qc_ticket_lost_quantity,
@@ -227,7 +261,18 @@ lookup_date(ticket_status.warehouse_accepted_time) as ticket_wh_accepted_date_ke
 lookup_time(ticket_status.warehouse_accepted_time) as ticket_wh_accepted_time_key,
 ticket_status.bd_accepted_time as ticket_bd_accepted_time,
 lookup_date(ticket_status.bd_accepted_time) as ticket_bd_accepted_date_key,
-lookup_time(ticket_status.bd_accepted_time) as ticket_bd_accepted_time_key
+lookup_time(ticket_status.bd_accepted_time) as ticket_bd_accepted_time_key,
+ticket_status.bd_accepted_by,
+ticket_status.warehouse_accepted_by,
+ticket_status.sent_to_supplier_return_by,
+ticket_status.lost_by,
+ticket_status.rejected_by,
+ticket_status.invalid_by,
+ticket_status.sent_to_liquidation_by,
+ticket_status.marked_for_supplier_return_by,
+ticket_status.marked_for_liquidation_by,
+ticket_status.bd_escalated_by,
+ticket_status.pending_reco_by
 from bigfoot_snapshot.dart_fki_scp_warehouse_qc_ticket_1_view as qt2
 left join 
 (select data.ticket_id as ticket_id,
@@ -242,7 +287,19 @@ max(case when data.status = 'sent_to_liquidation' then data.status_time end) as 
 max(case when data.status = 'marked_for_supplier_return' then data.status_time end) as marked_for_supplier_return_time,
 max(case when data.status = 'marked_for_liquidation' then data.status_time end) as marked_for_liquidation_time,
 max(case when data.status = 'bd_escalated' then data.status_time end) as bd_escalated_time,
-max(case when data.status = 'pending_reco' then data.status_time end) as pending_reco_time
-from bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_0_view 
+max(case when data.status = 'pending_reco' then data.status_time end) as pending_reco_time,
+max(case when data.status = 'created' then data.created_by end) as created_by,
+max(case when data.status = 'bd_accepted' then data.created_by end) as bd_accepted_by,
+max(case when data.status = 'warehouse_accepted' then data.created_by end) as warehouse_accepted_by,
+max(case when data.status = 'sent_to_supplier_return' then data.created_by end) as sent_to_supplier_return_by,
+max(case when data.status = 'lost' then data.created_by end) as lost_by,
+max(case when data.status = 'rejected' then data.created_by end) as rejected_by,
+max(case when data.status = 'invalid' then data.created_by end) as invalid_by,
+max(case when data.status = 'sent_to_liquidation' then data.created_by end) as sent_to_liquidation_by,
+max(case when data.status = 'marked_for_supplier_return' then data.created_by end) as marked_for_supplier_return_by,
+max(case when data.status = 'marked_for_liquidation' then data.created_by end) as marked_for_liquidation_by,
+max(case when data.status = 'bd_escalated' then data.created_by end) as bd_escalated_by,
+max(case when data.status = 'pending_reco' then data.created_by end) as pending_reco_by
+from bigfoot_snapshot.dart_fki_scp_warehouse_ticket_status_1_view 
 group  by data.ticket_id) ticket_status on qt2.entityid = ticket_status.ticket_id
 ) t1;
