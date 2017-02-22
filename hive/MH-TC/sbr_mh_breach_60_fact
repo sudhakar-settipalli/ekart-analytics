@@ -150,16 +150,20 @@ FROM(
     S.incoming_consignment_source_hub_id AS source_hub_id,
     S.incoming_consignment_destination_hub_id AS destination_hub_id,
   --modified 120 min resort
-    if (S.incoming_consignment_source_hub_id = S.shipment_origin_mh_facility_id ,
+    IF(S.incoming_consignment_source_hub_id = S.incoming_bag_source_hub_id,
+	if (S.incoming_consignment_source_hub_id = S.shipment_origin_mh_facility_id ,
         if(S.shipment_direction_flag = 'forward',
         if(upper(S.seller_type) not in ('FA','WSR'),
           S.shipment_first_received_at_datetime,
           S.shipment_first_received_at_datetime
           ),
       coalesce(S.shipment_facility_inscan_datetime,S.incoming_bag_source_hub_receive_datetime)),
-      from_unixtime(unix_timestamp(coalesce(S.incoming_bag_source_hub_receive_datetime,S.shipment_facility_inscan_datetime))+3600)
+      from_unixtime(unix_timestamp(coalesce(S.incoming_bag_source_hub_receive_datetime,S.shipment_facility_inscan_datetime))+3600)),
+	  from_unixtime(unix_timestamp(coalesce(S.incoming_bag_source_hub_receive_datetime,S.shipment_facility_inscan_datetime))+1800)
       ) as  mh_received_at_datetime,
-    (cast(hour(if (S.incoming_consignment_source_hub_id = S.shipment_origin_mh_facility_id ,
+-- added transit 30 minutes	  
+   (cast(hour(IF(S.incoming_consignment_source_hub_id = S.incoming_bag_source_hub_id,
+		if (S.incoming_consignment_source_hub_id = S.shipment_origin_mh_facility_id ,
         if(S.shipment_direction_flag = 'forward',
         if(upper(S.seller_type) not in ('FA','WSR'),
           S.shipment_first_received_at_datetime,
@@ -167,15 +171,18 @@ FROM(
           ),
       coalesce(S.shipment_facility_inscan_datetime,S.incoming_bag_source_hub_receive_datetime)),
       from_unixtime(unix_timestamp(coalesce(S.incoming_bag_source_hub_receive_datetime,S.shipment_facility_inscan_datetime))+3600)
-      )) as int)*3600 + cast(minute(if (S.incoming_consignment_source_hub_id = S.shipment_origin_mh_facility_id ,
+      ),from_unixtime(unix_timestamp(coalesce(S.incoming_bag_source_hub_receive_datetime,S.shipment_facility_inscan_datetime))+1800))
+	  ) as int)*3600 + cast(minute(IF(S.incoming_consignment_source_hub_id = S.incoming_bag_source_hub_id,
+	  if(S.incoming_consignment_source_hub_id = S.shipment_origin_mh_facility_id ,
         if(S.shipment_direction_flag = 'forward',
         if(upper(S.seller_type) not in ('FA','WSR'),
           S.shipment_first_received_at_datetime,
           S.shipment_first_received_at_datetime
           ),
       coalesce(S.shipment_facility_inscan_datetime,S.incoming_bag_source_hub_receive_datetime)),
-      from_unixtime(unix_timestamp(coalesce(S.incoming_bag_source_hub_receive_datetime,S.shipment_facility_inscan_datetime))+3600)
-      )) as int)*60) as start_time,
+      from_unixtime(unix_timestamp(coalesce(S.incoming_bag_source_hub_receive_datetime,S.shipment_facility_inscan_datetime))+3600)),
+	  from_unixtime(unix_timestamp(coalesce(S.incoming_bag_source_hub_receive_datetime,S.shipment_facility_inscan_datetime))+1800))
+	  ) as int)*60) as start_time,
     S.incoming_bag_id,
     S.incoming_consignment_source_hub_id,
     S.incoming_consignment_connection_id,
