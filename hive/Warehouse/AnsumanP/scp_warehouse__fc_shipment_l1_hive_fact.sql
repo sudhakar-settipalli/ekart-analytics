@@ -219,11 +219,15 @@ or (shipment_packing_box_suggested_name like 'M5%' and packing_box_used_outer_na
 )
 )  
 )
+or
+(
+is_mobile_tablet_category = 1 and packing_box_used_outer_name in ('A1','A2','A3') 
+and packing_box_used_outer_name = shipment_packing_box_suggested_name
+)
 then 1
 else 0
 end
-)  as is_mobile_adherence_outer
-,
+)  as is_mobile_adherence_outer,
 if(
 (
 Case when packing_box_suggested_outer_bucket=packing_box_used_outer_bucket 
