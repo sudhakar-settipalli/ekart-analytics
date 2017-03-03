@@ -1,0 +1,149 @@
+insert overwrite table fc_inbound_flow_l1_hive_fact
+select
+mr.ti_entity_id as putlist_item_id,
+mr.mr_created_at as mr_created_at,
+mr.mr_created_date_key as mr_created_date_key,
+mr.mr_created_time_key as mr_created_time_key,
+mr.mr_created_by as mr_created_by,
+mr.mr_destination_type as mr_destination_type,
+mr.mr_movement_request_id as mr_movement_request_id,
+mr.mr_source_type as mr_source_type,
+mr.mr_status as mr_status,
+mr.mr_total_quantity as mr_total_quantity,
+mr.mr_type as mr_type,
+mr.mr_updated_at as mr_updated_at,
+mr.mr_updated_date_key as mr_updated_date_key,
+mr.mr_updated_time_key as mr_updated_time_key,
+mr.mr_warehouse_id as mr_warehouse_id,
+mr.ti_task_id as ti_task_id,
+mr.mr_warehouse_dim_key as mr_warehouse_dim_key,
+mr.mri_source_location_dim_key as mri_source_location_dim_key,
+mr.mri_destination_location_dim_key as mri_destination_location_dim_key,
+mr.ti_quantity as putlist_item_qty,
+grn.grn_document_type as grn_document_type,
+grn.grn_created_at as grn_created_at,
+grn.grn_created_date_key as grn_created_date_key,
+grn.grn_created_time_key as grn_created_time_key,
+grn.irn_internal_id as irn_internal_id,
+grn.inbound_request_id as inbound_request_id,
+grn.shipment_id as shipment_id,
+grn.srn_id as srn_id,
+grn.grn_quantity as grn_quantity,
+grn.qc_pass_quantity as qc_pass_quantity,
+grn.grn_id as grn_id,
+grn.first_receiving_id as first_receiving_id,
+grn.first_receiving_time as first_receiving_time,
+mr.company as company,
+mr.ti_inventory_item_id as inventory_item_id,
+grn.grn_product_key as product_key,
+case when mr.ti_status = 'completed' then ti_updated_at else '' end as putaway_at,
+case when mr.ti_status = 'completed' then ti_updated_date_key else '' end as putaway_at_date_key,
+case when mr.ti_status = 'completed' then ti_updated_time_key else '' end as putaway_at_time_key,
+lookup_date(grn.first_receiving_time) as first_receiving_date_key,
+lookup_time(grn.first_receiving_time) as first_receiving_time_key,
+grn.submission_time as irn_submission_time,
+lookup_date(grn.submission_time) as irn_submission_date_key,
+lookup_time(grn.submission_time) as irn_submission_time_key,
+grn.expected_quantity as irn_expected_quantity, 
+grn.received_quantity as irn_received_quantity,
+grn.grn_warehouse_id,
+grn.warehouse_id_key as grn_warehouse_id_key,
+grn.receiving_warehouse,
+grn.receiving_warehouse_key,
+grn.inbound_type as first_receiving_type,
+imei_details.number1 as number1,
+imei_details.number2 as number2,
+imei_details.number3 as number3,
+imei_details.imei_mapping_present_flag as imei_mapping_present_flag
+from
+(select grn1.grn_document_type,
+grn1.grn_created_at,
+grn1.grn_created_date_key,
+grn1.grn_created_time_key,
+grn1.irn_internal_id,
+grn1.inbound_request_id,
+grn1.shipment_id,
+grn1.srn_id,
+grn1.grn_quantity,
+grn1.qc_pass_quantity,
+grn1.grn_id,
+grn1.grn_product_key,
+grn1.wid,
+ifr.first_receiving_id,
+ifr.first_receiving_time,
+ifr.submission_time,
+ifr.expected_quantity,
+ifr.received_quantity,
+grn1.grn_warehouse_id,
+grn1.warehouse_id_key,
+ifr.receiving_warehouse,
+ifr.receiving_warehouse_key,
+ifr.inbound_type
+from bigfoot_external_neo.scp_warehouse__fc_inbound_receiving_l0_hive_fact grn1
+full outer join 
+bigfoot_external_neo.scp_warehouse__fc_inbound_first_receiving_l1_hive_fact ifr 
+on lower(grn1.grn_document_id) = lower(ifr.first_receiving_id) and grn1.wid=ifr.wid) grn
+left join
+(select iit.inventory_item_id,iit.inventory_item_grn_id,iit.inventory_item_wid,min(mr.ti_entity_id) as min_putlist_item_id
+from bigfoot_external_neo.scp_warehouse__fc_inventory_item_l0_hive_fact iit
+left join bigfoot_external_neo.scp_warehouse__fc_movement_request_unit_l0_hive_fact mr on 
+mr.ti_inventory_item_id=cast(iit.inventory_item_id as bigint) and mr.mr_type = 'putlist'
+and mr.ti_status <> 'cancelled' and mr.mr_source_type in ('qc_reject_lbh_bulk','fps_bulk','lbh_bulk','qc_reject_bulk','inward_bulk','jit_inward_bulk','corporate_order_bulk')
+group by iit.inventory_item_id,iit.inventory_item_grn_id,iit.inventory_item_wid) ii 
+on ii.inventory_item_grn_id=grn.grn_id and ii.inventory_item_wid=grn.wid
+left join
+bigfoot_external_neo.scp_warehouse__fc_movement_request_unit_l0_hive_fact mr
+on mr.ti_entity_id = ii.min_putlist_item_id
+left join
+(
+select 
+imei_sub_query1.reservation_inventory_item_id as reservation_duplicate_inventory_item_id,
+imei_sub_query1.reservation_fulfill_reference_id as reservation_fulfill_reference_id,
+imei_sub_query1.number1 as number1,
+imei_sub_query1.number2 as number2,
+imei_sub_query1.number3 as number3,
+res2.res_1_reservation_inventory_item_id as original_reservation_inventory_item_id,
+1 as imei_mapping_present_flag
+from
+(
+select 
+res.reservation_inventory_item_id as reservation_inventory_item_id,
+res.reservation_fulfill_reference_id as reservation_fulfill_reference_id,
+psn1.number1 as number1,
+psn1.number2 as number2,
+psn1.number3 as number3
+from
+(select 
+res1.reservation_inventory_item_id as reservation_inventory_item_id,
+res1.reservation_fulfill_reference_id as reservation_fulfill_reference_id 
+from
+ bigfoot_external_neo.scp_warehouse__fc_reservation_l0_hive_fact as res1
+where ( res1.reservation_inv_source_type in ('non_fki','fbf') and 
+res1.reservation_outbound_type = 'customer_reservation')
+) res
+join
+(
+select 
+psn.inventory_item_id as  inventory_item_id,
+concat_ws(',',collect_set(psn.number1)) as number1,
+concat_ws(',',collect_set(psn.number2)) as number2,
+concat_ws(',',collect_set(psn.number3)) as number3
+from bigfoot_external_neo.scp_warehouse__fc_product_serial_number_map_l0_hive_fact psn
+group by psn.inventory_item_id
+) psn1 
+on (res.reservation_inventory_item_id=psn1.inventory_item_id) 
+) imei_sub_query1
+
+join
+
+(
+select 
+res_1.reservation_inventory_item_id as res_1_reservation_inventory_item_id,
+res_1.reservation_fulfill_reference_id as res_1_reservation_fulfill_reference_id 
+from
+ bigfoot_external_neo.scp_warehouse__fc_reservation_l0_hive_fact as res_1
+where ( res_1.reservation_inv_source_type <> 'non_fki' and 
+res_1.reservation_outbound_type = 'customer_reservation')
+) res2
+on (imei_sub_query1.reservation_fulfill_reference_id=res2.res_1_reservation_fulfill_reference_id)
+) imei_details on (ii.inventory_item_id=imei_details.original_reservation_inventory_item_id)

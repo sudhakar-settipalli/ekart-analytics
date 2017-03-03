@@ -1,0 +1,129 @@
+INSERT OVERWRITE TABLE fc_outbound_breach_unit_l2_fact
+Select
+a.fulfill_item_unit_id as fulfill_item_unit_id,
+a.fulfill_item_unit_dispatch_by_cutoff as fulfill_item_unit_dispatch_by_cutoff,
+a.autoheal_flag as autoheal_flag,
+a.fulfill_item_unit_dispatch_by_date_key as fulfill_item_unit_dispatch_by_date_key,
+a.fulfill_item_unit_dispatch_by_time_key as fulfill_item_unit_dispatch_by_time_key,
+a.seller_id_key as seller_id_key,
+a.fulfill_item_unit_shipment_movement_type as fulfill_item_unit_shipment_movement_type,
+a.fulfill_item_unit_promise_tier as fulfill_item_unit_promise_tier,
+a.fulfill_item_unit_breach_cost as fulfill_item_unit_breach_cost,
+a.fiu_warehouse_id as fiu_warehouse_id,
+a.fulfill_item_unit_region_type as fulfill_item_unit_region_type,
+a.fulfill_item_sales_channel as fulfill_item_sales_channel,
+a.fulfill_reference_id as fulfill_reference_id,
+a.fulfill_item_unit_status_modified as fulfill_item_unit_status_modified,
+a.warehouse_order_item_id as warehouse_order_item_id,
+a.order_item_un_hold_max_date_key as order_item_un_hold_max_date_key,
+a.order_item_un_hold_max_time_key as order_item_un_hold_max_time_key,
+a.unhold_timestamp as unhold_timestamp,
+a.order_item_unit_is_on_hold as order_item_unit_is_on_hold,
+a.order_status as order_status,
+a.order_id as order_id,
+a.order_item_id as order_item_id,
+a.reservation_status as reservation_status,
+a.reservation_created_timestamp as reservation_created_timestamp,
+a.reservation_created_date_key as reservation_created_date_key,
+a.reservation_created_time_key as reservation_created_time_key,
+a.reservation_quantity as reservation_quantity,
+a.reservation_cancelled_timestamp as reservation_cancelled_timestamp,
+a.picklist_display_id as picklist_display_id,
+a.picklist_created_timestamp as picklist_created_timestamp,
+a.picklist_created_date_key as picklist_created_date_key,
+a.picklist_created_time_key as picklist_created_time_key,
+a.picklist_completed_by as picklist_completed_by,
+a.picklist_completed_timestamp as picklist_completed_timestamp,
+a.picklist_completed_date_key as picklist_completed_date_key,
+a.picklist_completed_time_key as picklist_completed_time_key,
+a.picklist_picking_zone as picklist_picking_zone,
+a.shipment_display_id as shipment_display_id,
+a.shipment_status as shipment_status,
+a.shipment_created_timestamp as shipment_created_timestamp,
+a.shipment_dispatched_timestamp as shipment_dispatched_timestamp,
+a.shipment_dispatched_date_key as shipment_dispatched_date_key,
+a.shipment_dispatched_time_key as shipment_dispatched_time_key,
+a.fiu_dispatched_timestamp as fiu_dispatched_timestamp,
+a.warehouse_id_key as warehouse_id_key,
+a.warehouse_id as dispatch_warehouse_id,
+a.warehouse_company as warehouse_company,
+a.product_key as product_key,
+a.test_wh_flag as test_wh_flag,
+a.is_pending as is_pending,
+a.is_met as is_met,
+a.is_fc_hold as is_fc_hold,
+a.is_fc_pending as is_fc_pending,
+a.is_breach as is_breach,
+a.is_fulfillment_breach as is_fulfillment_breach,
+a.is_cs_breach as is_cs_breach,
+a.is_fc_breach as is_fc_breach,
+a.is_breach_quantity as is_breach_quantity,
+a.ibl_creation_timestamp as ibl_creation_timestamp,
+a.ibl_creation_date_key as ibl_creation_date_key,
+a.ibl_creation_time_key as ibl_creation_time_key,
+a.order_item_created_at as order_item_created_at,
+a.order_item_created_date_key as order_item_created_date_key,
+a.order_item_created_time_key as order_item_created_time_key,
+a.order_item_approved_timestamp as order_item_approved_timestamp,
+a.order_item_approved_date_key as order_item_approved_date_key,
+a.order_item_approved_time_key as order_item_approved_time_key,
+a.is_yesterday as is_yesterday,
+a.shipment_merchant_reference_id as shipment_merchant_reference_id,
+unproductive_time_query.unproductive_time as unproductive_time,
+a.order_item_is_freebie as order_item_is_freebie,
+a.shipment_item_quantity as shipment_item_quantity,
+a.dbd_from_reservation,
+a.dbd_from_reservation_date_key,
+a.dbd_from_reservation_time_key,
+a.is_breach_new,
+a.is_fulfillment_breach_new,
+a.is_cs_breach_new,
+a.is_fc_breach_new,
+a.is_breach_quantity_new,
+case when warehouse_id in ('bil','blr_jig_01','del','del_ggn_01','hyderabad_medchal_01','mum_bndi') and 
+(((unix_timestamp(shipment_dispatched_timestamp) - unix_timestamp(picklist_created_timestamp))- nvl(unproductive_time_query.unproductive_time,0))/60) > 100 then 1
+when warehouse_id in ('blr_wfld','chn_puzhal_01','kol_dan_01') and 
+(((unix_timestamp(shipment_dispatched_timestamp) - unix_timestamp(picklist_created_timestamp))- nvl(unproductive_time_query.unproductive_time,0))/60) > 90 then 1
+when warehouse_id in ('ghz','jai_01') and 
+(((unix_timestamp(shipment_dispatched_timestamp) - unix_timestamp(picklist_created_timestamp))- nvl(unproductive_time_query.unproductive_time,0))/60) > 60 then 1
+when warehouse_id = 'bil_pataudi_01' and 
+(((unix_timestamp(shipment_dispatched_timestamp) - unix_timestamp(picklist_created_timestamp))- nvl(unproductive_time_query.unproductive_time,0))/60) > 75 then 1
+else 0 end as is_p2d_breach,
+a.reservation_inventory_item_id as reservation_inventory_item_id,
+a.reservation_id as reservation_id,
+a.number1 as number1,
+a.number2 as number2,
+a.number3 as number3,
+a.imei_mapping_present_flag as imei_mapping_present_flag
+from 
+bigfoot_external_neo.scp_warehouse__fc_outbound_breach_unit_l2_hive_fact a
+left join 
+(
+select 
+br.fulfill_item_unit_id as fulfill_item_unit_id,
+sum(if(sh.end_time<br.shipment_dispatched_timestamp,UNIX_TIMESTAMP(sh.end_time),(UNIX_TIMESTAMP(br.shipment_dispatched_timestamp)))
+- if(sh.start_time>br.picklist_created_timestamp,UNIX_TIMESTAMP(sh.start_time),(UNIX_TIMESTAMP(br.picklist_created_timestamp))))as unproductive_time
+from 
+bigfoot_external_neo.scp_warehouse__fc_outbound_breach_unit_l2_hive_fact as br
+left join 
+(
+select
+warehouse_id,
+start_time,
+end_time
+ from
+bigfoot_common.fc_outbound_unprod_map
+where start_time between date_Add(to_date(from_unixtime(unix_timestamp())),-93)  and 
+date_Add(to_date(from_unixtime(unix_timestamp())),1)
+) sh on br.warehouse_id=sh.warehouse_id and (br.picklist_created_timestamp is not null 
+and br.shipment_dispatched_timestamp is not null and br.autoheal_flag=0)
+where
+(
+(sh.start_time<br.picklist_created_timestamp and sh.end_time>br.picklist_created_timestamp)
+or
+(sh.start_time<br.shipment_dispatched_timestamp and sh.end_time>br.shipment_dispatched_timestamp)
+or
+(sh.start_time>br.picklist_created_timestamp and sh.end_time<br.shipment_dispatched_timestamp)
+)
+group by br.fulfill_item_unit_id
+) unproductive_time_query on (a.fulfill_item_unit_id=unproductive_time_query.fulfill_item_unit_id and a.autoheal_flag=0)
