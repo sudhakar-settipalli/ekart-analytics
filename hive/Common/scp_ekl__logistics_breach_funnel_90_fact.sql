@@ -77,7 +77,7 @@ IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.logistics_prom
 				,IF(ff.fulfill_item_unit_deliver_date_change_reason='CustomerTriggered' and unix_timestamp(if(S.shipment_carrier = '3PL',cast(tpl_first_ofd_datetime as string),coalesce(TPT.dh_first_bag_received_datetime,cast(S.fsd_first_dh_received_datetime as string),from_unixtime(unix_timestamp())))) <= unix_timestamp(concat_ws(' ',cast(to_date(logistics_promise_datetime) as string),'00:00:00')) + 9*3600
 					,'Customer Dependency'
 					--DH Breach Flags
-					,If(lookup_date(S.fsd_first_ofd_datetime) <= lookup_date(S.logistics_promise_datetime) 
+					,If(lookup_date(S.fsd_first_ofd_datetime) <= lookup_date(S.logistics_promise_datetime)
 							and unix_timestamp(
 								if(S.shipment_carrier = 'FSD',
 									coalesce(TPT.dh_first_bag_received_datetime,
@@ -135,7 +135,7 @@ OR LM.breach_bucket = 'ADM_CD','03 Fulfilled',
 If(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp))),'02 Post-Dispatch_Breach',
 If(S.fsd_first_ofd_datetime<S.customer_promise_datetime,'02 Post-Dispatch_Breach',
 IF(FFM.breach_flag=1 and s.Shipment_flash_flag=1,'02 Post-Dispatch_Breach',
-IF(FM.breach_flag = 1, If(lower(FM.LP_CP_Breach_Bucket) ='First_Mile_PH_breach_not_dispatch_same_day','02 Post-Dispatch_Breach',IF(lower(FM.LP_CP_Breach_Bucket) <> 'met','01 Pre-Dispatch_Breach','01 Pre-Dispatch_Breach')),
+IF(FM.breach_flag = 1, If(lower(FM.LP_CP_Breach_Bucket) ='First_Mile_PH_breach_not_dispatch_same_day','02 Post-Dispatch_Breach','01 Pre-Dispatch_Breach'),
 IF(S.shipment_carrier = '3PL','02 Post-Dispatch_Breach',
 If(NCD.network_design_breach_flag = 1,'02 Post-Dispatch_Breach',
 IF(NC.network_compliance_breach_flag = 1,'02 Post-Dispatch_Breach',
@@ -181,8 +181,10 @@ IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.customer_promi
 												,IF(TPT.breach_flag = 1
 													,IF(Tracking.line_haul_breach_score>0, '04 EKL-TPT_Breach', '10 EKL-Unattributed_Design_Breach')
 													--FM Breach Flags
-													,IF(FM.breach_flag = 1
-														,IF(FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day', '05 First_Mile_PH_breach_not_dispatch_same_day', FM.LP_CP_Breach_Bucket)
+													,IF(FM.breach_flag = 1 AND FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day'
+														,'05 First_Mile_PH_breach_not_dispatch_same_day'
+													-- ,IF(FM.breach_flag = 1
+														-- ,IF(FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day', '05 First_Mile_PH_breach_not_dispatch_same_day', FM.LP_CP_Breach_Bucket)
 														,IF(FM.mp_dispatched_to_tc_date_key is not null and FM.consignment_receive_at_mh_date_key is not null and FM.consignment_receive_at_mh_date_key > FM.mp_dispatched_to_tc_date_key
 															,'05 First_Mile_PH_Consignment_recieve_next_day'
 															--3PL Breach Flags
