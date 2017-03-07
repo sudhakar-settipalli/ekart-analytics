@@ -56,7 +56,8 @@ final.product_detail_lbh_machine_warehouse_id as product_detail_lbh_machine_ware
 final.product_detail_lbh_updated_by as product_detail_lbh_updated_by , 
 final.is_first_party_seller as is_first_party_seller ,
 final.product_attribute_importance_type as product_attribute_importance_type,
-final.product_attribute_core_flag as product_attribute_core_flag
+final.product_attribute_core_flag as product_attribute_core_flag,
+final.lbh_suspected as lbh_suspected
 from
 (
 SELECT 
@@ -133,7 +134,8 @@ else 0
 end
 ) as is_first_party_seller,
 pahd.importance_type as product_attribute_importance_type,
-pahd.core_flag as product_attribute_core_flag
+pahd.core_flag as product_attribute_core_flag,
+pd.`data`.lbh_suspected as lbh_suspected
 from 
 bigfoot_snapshot.dart_fki_scp_warehouse_product_detail_2_view_total pd
 left join 
@@ -250,7 +252,8 @@ else 0
 end
 ) as is_first_party_seller,
 pahd.importance_type as product_attribute_importance_type,
-pahd.core_flag as product_attribute_core_flag
+pahd.core_flag as product_attribute_core_flag,
+pd.`data`.lbh_suspected as lbh_suspected
 from 
 bigfoot_snapshot.dart_wsr_scp_warehouse_product_detail_3_view_total pd
 left join 
