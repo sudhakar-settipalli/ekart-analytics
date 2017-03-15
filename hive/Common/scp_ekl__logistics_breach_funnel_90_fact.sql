@@ -29,41 +29,47 @@ TPT.breach_flag as tpt_breach_flag,
 TPT.breach_score as tpt_breach_score,
 LM.breach_flag as last_mile_breach_flag,
 FFM.Breach_Flag as flash_last_mile_breach_flag,
-M.misroute_flag,
+if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id
+	, TRUE
+	, M.misroute_flag) as misroute_flag,
 CM.customer_misroute_flag,
-CD.customer_dependency_flag,
+if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id
+	, FALSE
+	, CD.customer_dependency_flag) as customer_dependency_flag,
 
 IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.logistics_promise_datetime) OR (S.shipment_delivered_at_datetime IS NULL AND from_unixtime(UNIX_TIMESTAMP()) < S.logistics_promise_datetime)
 	,'03 Fulfilled'
 	,IF(CM.customer_misroute_flag = 1
 		,'03 Fulfilled'
-		,IF(CD.customer_dependency_flag = 1 and lookup_date(if(S.shipment_carrier = '3PL',tpl_first_ofd_datetime,S.fsd_first_ofd_datetime)) <= lookup_date(S.logistics_promise_datetime) OR CD.statuses like '%Undelivered_Incomplete_Address%' OR LM.breach_bucket = 'ADM_CD'
+		,IF(CD.customer_dependency_flag = 1 and lower(s.shipment_current_status) <> 'undelivered_othercitymisroute' and lookup_date(if(S.shipment_carrier = '3PL',tpl_first_ofd_datetime,S.fsd_first_ofd_datetime)) <= lookup_date(S.logistics_promise_datetime) OR CD.statuses like '%Undelivered_Incomplete_Address%' OR LM.breach_bucket = 'ADM_CD'
 			,'03 Fulfilled'
-			,IF(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp)))
-				,'02 Post-Dispatch_Breach'
-				,IF(S.shipment_carrier = '3PL'
+			,IF(if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, FALSE, CD.customer_dependency_flag) = 1
+				,'03 Fulfilled'
+				,IF(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp)))
 					,'02 Post-Dispatch_Breach'
-					,IF(FFM.breach_flag=1 AND S.shipment_flash_flag=1
+					,IF(S.shipment_carrier = '3PL'
 						,'02 Post-Dispatch_Breach'
-						,IF(FM.breach_flag = 1 AND FM.LP_CP_Breach_Bucket='First_Mile_PH_breach_dispatch_same_day'
+						,IF(FFM.breach_flag=1 AND S.shipment_flash_flag=1
 							,'02 Post-Dispatch_Breach'
-							,IF(NCD.network_design_breach_flag = 1
+							,IF(FM.breach_flag = 1 AND FM.LP_CP_Breach_Bucket='First_Mile_PH_breach_dispatch_same_day'
 								,'02 Post-Dispatch_Breach'
-								,IF(NC.network_compliance_breach_flag = 1
+								,IF(NCD.network_design_breach_flag = 1
 									,'02 Post-Dispatch_Breach'
-									,IF(NCD.connection_design_breach_flag = 1
+									,IF(NC.network_compliance_breach_flag = 1
 										,'02 Post-Dispatch_Breach'
-										,IF(mh_tc_breach.mh_breach_flag = 1
+										,IF(NCD.connection_design_breach_flag = 1
 											,'02 Post-Dispatch_Breach'
-											,IF(mh_tc_breach.tc_connection_breach_flag = 1
+											,IF(mh_tc_breach.mh_breach_flag = 1
 												,'02 Post-Dispatch_Breach'
-												,IF(M.misroute_flag = 1 AND CM.customer_misroute_flag IS NULL
+												,IF(mh_tc_breach.tc_connection_breach_flag = 1
 													,'02 Post-Dispatch_Breach'
-														,IF(TPT.breach_flag = 1
-															, '02 Post-Dispatch_Breach'
-															,IF(LM.breach_flag = 1 OR LM.breach_bucket = 'ADM_FB'
+													,IF(if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, TRUE, M.misroute_flag) = 1 AND CM.customer_misroute_flag IS NULL
+														,'02 Post-Dispatch_Breach'
+															,IF(TPT.breach_flag = 1
 																, '02 Post-Dispatch_Breach'
-																,'02 Post-Dispatch_Breach'))))))))))))))
+																,IF(LM.breach_flag = 1 OR LM.breach_bucket = 'ADM_FB'
+																	, '02 Post-Dispatch_Breach'
+																	,'02 Post-Dispatch_Breach')))))))))))))))
 ) AS logistics_fulfillment_bucket,
 
 IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.logistics_promise_datetime)
@@ -72,79 +78,102 @@ IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.logistics_prom
 		,'NOT_DELIVERED'
 		,IF(CM.customer_misroute_flag = 1
 			,'Customer Misroute'
-			,IF((CD.customer_dependency_flag = 1 and lookup_date(if(S.shipment_carrier = '3PL',tpl_first_ofd_datetime,S.fsd_first_ofd_datetime)) <= lookup_date(S.logistics_promise_datetime)) OR CD.statuses like '%Undelivered_Incomplete_Address%' OR LM.breach_bucket = 'ADM_CD'
+			,IF((CD.customer_dependency_flag = 1 and lower(s.shipment_current_status) <> 'undelivered_othercitymisroute' 
+					and lookup_date(if(S.shipment_carrier = '3PL',tpl_first_ofd_datetime,S.fsd_first_ofd_datetime)) <= lookup_date(S.logistics_promise_datetime))
+					OR CD.statuses like '%Undelivered_Incomplete_Address%'
+					OR LM.breach_bucket = 'ADM_CD'
 				,'Customer Dependency'
-				,IF(ff.fulfill_item_unit_deliver_date_change_reason='CustomerTriggered' and unix_timestamp(if(S.shipment_carrier = '3PL',cast(tpl_first_ofd_datetime as string),coalesce(TPT.dh_first_bag_received_datetime,cast(S.fsd_first_dh_received_datetime as string),from_unixtime(unix_timestamp())))) <= unix_timestamp(concat_ws(' ',cast(to_date(logistics_promise_datetime) as string),'00:00:00')) + 9*3600
+				,IF(if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, FALSE, CD.customer_dependency_flag) = 1
 					,'Customer Dependency'
-					--DH Breach Flags
-					,If(lookup_date(S.fsd_first_ofd_datetime) <= lookup_date(S.logistics_promise_datetime)
-							and unix_timestamp(
-								if(S.shipment_carrier = 'FSD',
-									coalesce(TPT.dh_first_bag_received_datetime,
-										cast(S.fsd_first_dh_received_datetime as string),
-											from_unixtime(unix_timestamp())),
-									NULL)) <= unix_timestamp(concat_ws(' ',cast(to_date(S.logistics_promise_datetime) as string),'00:00:00')) + 9*3600
-						,'01 EKL-DH_Breach'
-						,IF(FFM.breach_flag=1 and s.Shipment_flash_flag=1
-							,'01 EKL-DH_Breach(PICKUP)'
-							,IF(LM.breach_flag = 1
-								,'01 EKL-DH_Breach'
-								,IF(LM.breach_bucket = 'ADM_FB'
-									,'01 EKL-PC_Breach'
-									--MH Breach Flags
-									,If(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp)))
-										,'02 3PL-MH_Breach'
-										,IF(mh_tc_breach.mh_breach_flag = 1
-											,if(mh_tc_breach.sort_resort_mp_flag ='SORT','02 EKL-MH_Breach_Sort','02 EKL-MH_Breach_Resort')
-											,IF(M.misroute_flag = 1 AND CM.customer_misroute_flag IS NULL
-												,'03 EKL-Misroute'
-												,IF(TPT.breach_flag = 1
-													,IF(Tracking.line_haul_breach_score>0, '04 EKL-TPT_Breach', '10 EKL-Unattributed_Design_Breach')
-													--FM Breach Flags
-													,IF(FM.breach_flag = 1 AND FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day'
-														,'05 First_Mile_PH_breach_not_dispatch_same_day'
-														,IF(FM.mp_dispatched_to_tc_date_key is not null and FM.consignment_receive_at_mh_date_key is not null and FM.consignment_receive_at_mh_date_key > FM.mp_dispatched_to_tc_date_key
-															,'05 First_Mile_PH_Consignment_recieve_next_day'
-															--3PL Breach Flag
-															,IF(S.shipment_carrier = '3PL'
-																,'06 3PL_Breach'
-																--Design Breach Flags
-																,If(NCD.network_design_breach_flag = 1
-																	,'07 Network_Design_Breach'
-																	,IF(NCD.connection_design_breach_flag = 1
-																		,'08 Connection_Design_Breach'
-																		,IF(NC.network_compliance_breach_flag = 1
-																			,'09 Network_Compliance_Breach'
-																			--Catch All Buckets
-																			,IF(S.shipment_current_status ='Undelivered_Not_Attended' and S.shipment_current_hub_type ='MOTHER_HUB' and cast(unix_timestamp(shipment_current_status_datetime) as  int) + 93600 < cast(unix_timestamp() as int)
-																				,'02 EKL-MH_Breach_Sort'
-																				,IF(S.shipment_current_status = 'dispatched_to_vendor'
+					,IF(ff.fulfill_item_unit_deliver_date_change_reason='CustomerTriggered' and unix_timestamp(if(S.shipment_carrier = '3PL',cast(tpl_first_ofd_datetime as string),coalesce(TPT.dh_first_bag_received_datetime,cast(S.fsd_first_dh_received_datetime as string),from_unixtime(unix_timestamp())))) <= unix_timestamp(concat_ws(' ',cast(to_date(logistics_promise_datetime) as string),'00:00:00')) + 9*3600
+						,'Customer Dependency'
+						--DH Breach Flags
+						,If(lookup_date(S.fsd_first_ofd_datetime) <= lookup_date(S.logistics_promise_datetime)
+								and if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, TRUE, M.misroute_flag) <> 1
+								and unix_timestamp(
+									if(S.shipment_carrier = 'FSD',
+										coalesce(TPT.dh_first_bag_received_datetime,
+											cast(S.fsd_first_dh_received_datetime as string),
+												from_unixtime(unix_timestamp())),
+										NULL)) <= unix_timestamp(concat_ws(' ',cast(to_date(S.logistics_promise_datetime) as string),'00:00:00')) + 9*3600
+							,'01 EKL-DH_Breach'
+							,IF(FFM.breach_flag=1 and s.Shipment_flash_flag=1
+								,'01 EKL-DH_Breach(PICKUP)'
+								,IF(LM.breach_flag = 1
+									,'01 EKL-DH_Breach'
+									,IF(LM.breach_bucket = 'ADM_FB'
+										,'01 EKL-PC_Breach'
+										--MH Breach Flags
+										,If(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp)))
+											,'02 3PL-MH_Breach'
+											,IF(mh_tc_breach.mh_breach_flag = 1
+												,if(mh_tc_breach.sort_resort_mp_flag ='SORT','02 EKL-MH_Breach_Sort','02 EKL-MH_Breach_Resort')
+												,IF(if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, TRUE, M.misroute_flag) = 1 AND CM.customer_misroute_flag IS NULL
+													,'03 EKL-Misroute'
+													,IF(TPT.breach_flag = 1
+														,IF(Tracking.line_haul_breach_score>0, '04 EKL-TPT_Breach', '10 EKL-Unattributed_Design_Breach')
+														--FM Breach Flags
+														,IF(FM.breach_flag = 1 AND FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day'
+															,'05 First_Mile_PH_breach_not_dispatch_same_day'
+															,IF(FM.mp_dispatched_to_tc_date_key is not null and FM.consignment_receive_at_mh_date_key is not null and FM.consignment_receive_at_mh_date_key > FM.mp_dispatched_to_tc_date_key
+																,'05 First_Mile_PH_Consignment_recieve_next_day'
+																--3PL Breach Flag
+																,IF(S.shipment_carrier = '3PL'
+																	,'06 3PL_Breach'
+																	--Design Breach Flags
+																	,If(NCD.network_design_breach_flag = 1
+																		,'07 Network_Design_Breach'
+																		,IF(NCD.connection_design_breach_flag = 1
+																			,'08 Connection_Design_Breach'
+																			,IF(NC.network_compliance_breach_flag = 1
+																				,'09 Network_Compliance_Breach'
+																				--Catch All Buckets
+																				,IF(S.shipment_current_status ='Undelivered_Not_Attended' and S.shipment_current_hub_type ='MOTHER_HUB' and cast(unix_timestamp(shipment_current_status_datetime) as  int) + 93600 < cast(unix_timestamp() as int)
 																					,'02 EKL-MH_Breach_Sort'
-																					,IF(S.shipment_current_status = 'Expected' and S.shipment_current_hub_type in ('DELIVERY_HUB','MOTHER_HUB','PICKUP_CENTER')
-																						,'10 EKL-Unattributed_Design_Breach'
-																						,IF(S.shipment_current_hub_type = 'PICKUP_CENTER'
-																							,'11 EKL-Pickup_Center_RCA','11 EKL-RCA_Bucket')
-																					)))))))))))))))))))))
+																					,IF(S.shipment_current_status = 'dispatched_to_vendor'
+																						,'02 EKL-MH_Breach_Sort'
+																						,IF(S.shipment_current_status = 'Expected' and S.shipment_current_hub_type in ('DELIVERY_HUB','MOTHER_HUB','PICKUP_CENTER')
+																							,'10 EKL-Unattributed_Design_Breach'
+																							,IF(S.shipment_current_hub_type = 'PICKUP_CENTER'
+																								,'11 EKL-Pickup_Center_RCA','11 EKL-RCA_Bucket')
+																						))))))))))))))))))))))
 ) AS logistics_breach_bucket,
 
 
-IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.customer_promise_datetime) OR (S.shipment_delivered_at_datetime IS NULL AND from_unixtime(UNIX_TIMESTAMP()) < S.customer_promise_datetime),'03 Fulfilled',
-IF(CM.customer_misroute_flag = 1,'03 Fulfilled',
-IF(CD.customer_dependency_flag = 1 and lookup_date(if(S.shipment_carrier = '3PL',tpl_first_ofd_datetime,S.fsd_first_ofd_datetime)) <= lookup_date(S.customer_promise_datetime) OR CD.statuses like '%Undelivered_Incomplete_Address%'
-OR LM.breach_bucket = 'ADM_CD','03 Fulfilled',
-If(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp))),'02 Post-Dispatch_Breach',
-If(S.fsd_first_ofd_datetime<S.customer_promise_datetime,'02 Post-Dispatch_Breach',
-IF(FFM.breach_flag=1 and s.Shipment_flash_flag=1,'02 Post-Dispatch_Breach',
-IF(FM.breach_flag = 1, If(lower(FM.LP_CP_Breach_Bucket) ='First_Mile_PH_breach_not_dispatch_same_day','02 Post-Dispatch_Breach','01 Pre-Dispatch_Breach'),
-IF(S.shipment_carrier = '3PL','02 Post-Dispatch_Breach',
-If(NCD.network_design_breach_flag = 1,'02 Post-Dispatch_Breach',
-IF(NC.network_compliance_breach_flag = 1,'02 Post-Dispatch_Breach',
-IF(NCD.connection_design_breach_flag = 1,'02 Post-Dispatch_Breach',
-IF(mh_tc_breach.mh_breach_flag = 1,'02 Post-Dispatch_Breach',
-IF(mh_tc_breach.tc_connection_breach_flag = 1,'02 Post-Dispatch_Breach',
-IF(TPT.breach_flag = 1, '02 Post-Dispatch_Breach',
-IF(M.misroute_flag = 1 AND CM.customer_misroute_flag IS NULL,'02 Post-Dispatch_Breach',
-IF(LM.breach_flag = 1 OR LM.breach_bucket = 'ADM_FB', '02 Post-Dispatch_Breach','02 Post-Dispatch_Breach')))))))))))))))) AS customer_fulfillment_bucket,
+IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.customer_promise_datetime) OR (S.shipment_delivered_at_datetime IS NULL AND from_unixtime(UNIX_TIMESTAMP()) < S.customer_promise_datetime)
+	,'03 Fulfilled'
+		,IF(CM.customer_misroute_flag = 1
+			,'03 Fulfilled'
+			,IF(CD.customer_dependency_flag = 1 and lookup_date(if(S.shipment_carrier = '3PL',tpl_first_ofd_datetime,S.fsd_first_ofd_datetime)) <= lookup_date(S.customer_promise_datetime) OR CD.statuses like '%Undelivered_Incomplete_Address%' OR LM.breach_bucket = 'ADM_CD'
+				,'03 Fulfilled'
+				,IF(if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, FALSE, CD.customer_dependency_flag) = 1
+					,'03 Fulfilled'
+					,If(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp)))
+						,'02 Post-Dispatch_Breach'
+						,If(S.fsd_first_ofd_datetime<S.customer_promise_datetime
+							,'02 Post-Dispatch_Breach'
+							,IF(FFM.breach_flag=1 and s.Shipment_flash_flag=1
+								,'02 Post-Dispatch_Breach'
+								,IF(FM.breach_flag = 1
+									,if(lower(FM.LP_CP_Breach_Bucket) ='First_Mile_PH_breach_not_dispatch_same_day','02 Post-Dispatch_Breach','01 Pre-Dispatch_Breach')
+									,IF(S.shipment_carrier = '3PL'
+										,'02 Post-Dispatch_Breach'
+										,If(NCD.network_design_breach_flag = 1
+											,'02 Post-Dispatch_Breach'
+											,IF(NC.network_compliance_breach_flag = 1
+												,'02 Post-Dispatch_Breach'
+												,IF(NCD.connection_design_breach_flag = 1
+													,'02 Post-Dispatch_Breach'
+													,IF(mh_tc_breach.mh_breach_flag = 1
+														,'02 Post-Dispatch_Breach'
+														,IF(mh_tc_breach.tc_connection_breach_flag = 1
+															,'02 Post-Dispatch_Breach'
+															,IF(TPT.breach_flag = 1
+																,'02 Post-Dispatch_Breach'
+																,IF(if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, TRUE, M.misroute_flag) = 1 AND CM.customer_misroute_flag IS NULL
+																	,'02 Post-Dispatch_Breach'
+																	,IF(LM.breach_flag = 1 OR LM.breach_bucket = 'ADM_FB', '02 Post-Dispatch_Breach','02 Post-Dispatch_Breach'))))))))))))))))
+) AS customer_fulfillment_bucket,
 
 IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.customer_promise_datetime)
 	,'Delivered by promise'
@@ -152,61 +181,67 @@ IF(lookup_date(S.shipment_delivered_at_datetime) <= lookup_date(S.customer_promi
 		,'NOT_DELIVERED'
 		,IF(CM.customer_misroute_flag = 1
 			,'Customer Misroute'
-			,IF((CD.customer_dependency_flag = 1 and lookup_date(if(S.shipment_carrier = '3PL',tpl_first_ofd_datetime,S.fsd_first_ofd_datetime)) <= lookup_date(S.customer_promise_datetime)) OR CD.statuses like '%Undelivered_Incomplete_Address%' OR LM.breach_bucket = 'ADM_CD'
+			,IF((CD.customer_dependency_flag = 1 and lower(s.shipment_current_status) <> 'undelivered_othercitymisroute' 
+					and lookup_date(if(S.shipment_carrier = '3PL',tpl_first_ofd_datetime,S.fsd_first_ofd_datetime)) <= lookup_date(S.logistics_promise_datetime))
+					OR CD.statuses like '%Undelivered_Incomplete_Address%'
+					OR LM.breach_bucket = 'ADM_CD'
 				,'Customer Dependency'
-				,IF(ff.fulfill_item_unit_deliver_date_change_reason='CustomerTriggered' and unix_timestamp(if(S.shipment_carrier = '3PL',cast(tpl_first_ofd_datetime as string),coalesce(TPT.dh_first_bag_received_datetime,cast(S.fsd_first_dh_received_datetime as string),from_unixtime(unix_timestamp())))) <= unix_timestamp(concat_ws(' ',cast(to_date(customer_promise_datetime) as string),'00:00:00')) + 9*3600
+				,IF(if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, FALSE, CD.customer_dependency_flag) = 1
 					,'Customer Dependency'
-					--DH Breach Flags
-					,If(lookup_date(S.fsd_first_ofd_datetime) <= lookup_date(S.customer_promise_datetime) 
-							and unix_timestamp(
-								if(S.shipment_carrier = 'FSD',
-									coalesce(TPT.dh_first_bag_received_datetime,
-										cast(S.fsd_first_dh_received_datetime as string),
-											from_unixtime(unix_timestamp())),
-									NULL)) <= unix_timestamp(concat_ws(' ',cast(to_date(S.customer_promise_datetime) as string),'00:00:00')) + 9*3600
-						,'01 EKL-DH_Breach'
-						,IF(FFM.breach_flag=1 AND s.Shipment_flash_flag=1
-							,'01 EKL-DH_Breach(PICKUP)'
-							,IF(LM.breach_flag = 1
-								,'01 EKL-DH_Breach'
-								,IF(LM.breach_bucket = 'ADM_FB'
-									,'09 EKL-PC_Breach'
-									--MH Breach Flags
-									,If(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp)))
-										,'02 3PL-MH_Breach'
-										,IF(mh_tc_breach.mh_breach_flag = 1
-											,if(mh_tc_breach.sort_resort_mp_flag ='SORT','02 EKL-MH_Breach_Sort','02 EKL-MH_Breach_Resort')
-											,IF(M.misroute_flag = 1 AND CM.customer_misroute_flag IS NULL
-												,'03 EKL-Misroute'
-												,IF(TPT.breach_flag = 1
-													,IF(Tracking.line_haul_breach_score>0, '04 EKL-TPT_Breach', '10 EKL-Unattributed_Design_Breach')
-													--FM Breach Flags
-													,IF(FM.breach_flag = 1 AND FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day'
-														,'05 First_Mile_PH_breach_not_dispatch_same_day'
-													-- ,IF(FM.breach_flag = 1
-														-- ,IF(FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day', '05 First_Mile_PH_breach_not_dispatch_same_day', FM.LP_CP_Breach_Bucket)
-														,IF(FM.mp_dispatched_to_tc_date_key is not null and FM.consignment_receive_at_mh_date_key is not null and FM.consignment_receive_at_mh_date_key > FM.mp_dispatched_to_tc_date_key
-															,'05 First_Mile_PH_Consignment_recieve_next_day'
-															--3PL Breach Flags
-															,IF(S.shipment_carrier = '3PL'
-																,'06 3PL_Breach'
-																-- Design Breach Flags
-																,If(NCD.network_design_breach_flag = 1
-																	,'07 Network_Design_Breach'
-																	,IF(NCD.connection_design_breach_flag = 1
-																		,'08 Connection_Design_Breach'
-																		,IF(NC.network_compliance_breach_flag = 1
-																			,'09 Network_Compliance_Breach'
-																			--Catch All Buckets
-																			,IF(S.shipment_current_status ='Undelivered_Not_Attended' and S.shipment_current_hub_type ='MOTHER_HUB' and cast(unix_timestamp(shipment_current_status_datetime) as  int) + 93600 < cast(unix_timestamp()  as int)
-																				,'02 EKL-MH_Breach_Sort'
-																				,IF(S.shipment_current_status = 'dispatched_to_vendor'
+					,IF(ff.fulfill_item_unit_deliver_date_change_reason='CustomerTriggered' and unix_timestamp(if(S.shipment_carrier = '3PL',cast(tpl_first_ofd_datetime as string),coalesce(TPT.dh_first_bag_received_datetime,cast(S.fsd_first_dh_received_datetime as string),from_unixtime(unix_timestamp())))) <= unix_timestamp(concat_ws(' ',cast(to_date(customer_promise_datetime) as string),'00:00:00')) + 9*3600
+						,'Customer Dependency'
+						--DH Breach Flags
+						,If(lookup_date(S.fsd_first_ofd_datetime) <= lookup_date(S.customer_promise_datetime) 
+								and if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, TRUE, M.misroute_flag) <> 1
+								and unix_timestamp(
+									if(S.shipment_carrier = 'FSD',
+										coalesce(TPT.dh_first_bag_received_datetime,
+											cast(S.fsd_first_dh_received_datetime as string),
+												from_unixtime(unix_timestamp())),
+										NULL)) <= unix_timestamp(concat_ws(' ',cast(to_date(S.customer_promise_datetime) as string),'00:00:00')) + 9*3600
+							,'01 EKL-DH_Breach'
+							,IF(FFM.breach_flag=1 AND s.Shipment_flash_flag=1
+								,'01 EKL-DH_Breach(PICKUP)'
+								,IF(LM.breach_flag = 1
+									,'01 EKL-DH_Breach'
+									,IF(LM.breach_bucket = 'ADM_FB'
+										,'09 EKL-PC_Breach'
+										--MH Breach Flags
+										,If(S.shipment_carrier = '3PL' AND lookup_date(S.vendor_dispatch_datetime)>lookup_date(if(lookup_time(S.vendor_dispatch_datetime)<1830,S.first_mh_tc_receive_datetime,cast(date_add(S.first_mh_tc_receive_datetime,1) as timestamp)))
+											,'02 3PL-MH_Breach'
+											,IF(mh_tc_breach.mh_breach_flag = 1
+												,if(mh_tc_breach.sort_resort_mp_flag ='SORT','02 EKL-MH_Breach_Sort','02 EKL-MH_Breach_Resort')
+												,IF(if(lower(s.shipment_current_status) = 'undelivered_othercitymisroute' and s.fsd_assigned_hub_id<>s.shipment_current_hub_id, TRUE, M.misroute_flag) = 1 AND CM.customer_misroute_flag IS NULL
+													,'03 EKL-Misroute'
+													,IF(TPT.breach_flag = 1
+														,IF(Tracking.line_haul_breach_score>0, '04 EKL-TPT_Breach', '10 EKL-Unattributed_Design_Breach')
+														--FM Breach Flags
+														,IF(FM.breach_flag = 1 AND FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day'
+															,'05 First_Mile_PH_breach_not_dispatch_same_day'
+														-- ,IF(FM.breach_flag = 1
+															-- ,IF(FM.LP_CP_Breach_Bucket ='First_Mile_PH_breach_not_dispatch_same_day', '05 First_Mile_PH_breach_not_dispatch_same_day', FM.LP_CP_Breach_Bucket)
+															,IF(FM.mp_dispatched_to_tc_date_key is not null and FM.consignment_receive_at_mh_date_key is not null and FM.consignment_receive_at_mh_date_key > FM.mp_dispatched_to_tc_date_key
+																,'05 First_Mile_PH_Consignment_recieve_next_day'
+																--3PL Breach Flags
+																,IF(S.shipment_carrier = '3PL'
+																	,'06 3PL_Breach'
+																	-- Design Breach Flags
+																	,If(NCD.network_design_breach_flag = 1
+																		,'07 Network_Design_Breach'
+																		,IF(NCD.connection_design_breach_flag = 1
+																			,'08 Connection_Design_Breach'
+																			,IF(NC.network_compliance_breach_flag = 1
+																				,'09 Network_Compliance_Breach'
+																				--Catch All Buckets
+																				,IF(S.shipment_current_status ='Undelivered_Not_Attended' and S.shipment_current_hub_type ='MOTHER_HUB' and cast(unix_timestamp(shipment_current_status_datetime) as  int) + 93600 < cast(unix_timestamp()  as int)
 																					,'02 EKL-MH_Breach_Sort'
-																					,IF(S.shipment_current_status = 'Expected' and S.shipment_current_hub_type in ('DELIVERY_HUB','MOTHER_HUB','PICKUP_CENTER')
-																						,'10 EKL-Unattributed_Design_Breach'
-																						,IF(S.shipment_current_hub_type = 'PICKUP_CENTER'
-																							,'11 EKL-Pickup_Center_RCA','11 EKL-RCA_Bucket')
-																					)))))))))))))))))))))
+																					,IF(S.shipment_current_status = 'dispatched_to_vendor'
+																						,'02 EKL-MH_Breach_Sort'
+																						,IF(S.shipment_current_status = 'Expected' and S.shipment_current_hub_type in ('DELIVERY_HUB','MOTHER_HUB','PICKUP_CENTER')
+																							,'10 EKL-Unattributed_Design_Breach'
+																							,IF(S.shipment_current_hub_type = 'PICKUP_CENTER'
+																								,'11 EKL-Pickup_Center_RCA','11 EKL-RCA_Bucket')
+																						))))))))))))))))))))))
 ) AS customer_breach_bucket,
 							   
 TPT.dh_first_bag_received_datetime,
