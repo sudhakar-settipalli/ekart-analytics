@@ -353,5 +353,13 @@ T4.missort_score,
 T4.resort_count,
 T4.obd_delivery_type,
 T4.obd_flyer_id,
-T4.obd_flyer_status
+T4.obd_flyer_status,
+T4.obd_event_reason,
+T4.profiled_length,
+T4.profiled_breadth,
+T4.profiled_height,
+T4.obd_execution_mode,
+T4.OBD_agent_id_key,
+T4.obd_cluster_details,
+T4.obd_vehicle_details
 FROM bigfoot_external_neo.scp_ekl__shipment_hive_90_fact T4;
