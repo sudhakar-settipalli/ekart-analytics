@@ -65,7 +65,7 @@ Shipment.shipment_pending_flag AS shipment_pending_flag,
 NULL AS goods_recon_pending_flag,
 Shipment.shipment_num_of_pk_attempt AS shipment_num_of_pk_attempt,
 --Shipment.fsd_number_of_ofd_attempts AS fsd_number_of_ofd_attempts,
-runtask.task_type as fsd_number_of_ofd_attempts,
+coalesce(runtask.task_type,Shipment.fsd_number_of_ofd_attempts) as fsd_number_of_ofd_attempts,
 Shipment.shipment_rvp_pk_number_of_attempts AS shipment_rvp_pk_number_of_attempts,
 Shipment.shipment_weight AS shipment_weight,
 Shipment.sender_weight AS sender_weight,
@@ -524,7 +524,15 @@ Tracking.missort_score as missort_score,
 null resort_count,
 OBD.delivery_type as obd_delivery_type,
 OBD.flyer_id as obd_flyer_id,
-OBD.flyer_status as obd_flyer_status
+OBD.flyer_status as obd_flyer_status,
+OBD.event_reason as obd_event_reason,
+shipment.profiled_length as profiled_length,
+shipment.profiled_breadth as profiled_breadth,
+shipment.profiled_height as profiled_height,
+OBD.tripsheet_executionmode as obd_execution_mode,
+lookupkey('agent_id', OBD.tripsheet_agentid) as OBD_agent_id_key,
+concat_ws("|", obd.tripsheet_clustername, obd.tripsheet_agenttoassign, obd.tripsheet_vehicletoassign) as obd_cluster_details,
+concat_ws("|", obd.tripsheet_vehicle_type, cast(obd.tripsheet_vehicleid as string)) as obd_vehicle_details
 FROM
 (SELECT shipment_id,
 first_associated_shipment_id,
@@ -652,11 +660,30 @@ CAST(last_undelivery_status_datetime AS TIMESTAMP) AS last_undelivery_status_dat
 CAST(rto_first_undelivery_status_datetime as TIMESTAMP) AS rto_first_undelivery_status_datetime,
 rto_num_ofd_attempts,
 shipment_contour_volume,
-cast(myn_logstcs_outscn_datetime as timestamp) as myn_logstcs_outscn_datetime
+cast(myn_logstcs_outscn_datetime as timestamp) as myn_logstcs_outscn_datetime,
+profiled_length,
+profiled_breadth,
+profiled_height
 FROM bigfoot_external_neo.scp_ekl__shipment_l1_90_fact) Shipment
 
 LEFT OUTER JOIN
-bigfoot_external_neo.scp_ekl__first_mile_retruns_hive_fact OBD 
+(select 
+	returntrackingid,
+	max(return_type) as return_type,
+	max(delivery_type) as delivery_type,
+	max(flyer_id) as flyer_id,
+	max(flyer_status) as flyer_status,
+	max(event_reason) as event_reason,
+	max(tripsheet_executionmode) as tripsheet_executionmode,
+	max(tripsheet_agentid) as tripsheet_agentid,
+	max(tripsheet_clustername) as tripsheet_clustername,
+	max(tripsheet_agenttoassign) as tripsheet_agenttoassign,
+	max(tripsheet_vehicletoassign) as tripsheet_vehicletoassign,
+	max(tripsheet_vehicle_type) as tripsheet_vehicle_type,
+	max(tripsheet_vehicleid) as tripsheet_vehicleid
+from bigfoot_external_neo.scp_ekl__first_mile_retruns_hive_fact
+group by returntrackingid
+) OBD 
 ON shipment.vendor_tracking_id = OBD.returntrackingid
 
 LEFT OUTER JOIN
@@ -728,8 +755,8 @@ FROM bigfoot_external_neo.scp_ekl__first_order_shipment_map_l1_90_fact
 WHERE order_item_unit_shipment_id IS NOT NULL) OrderItem 
 ON (OrderItem.order_item_unit_shipment_id = shipment.merchant_reference_id)
 
-LEFT OUTER JOIN bigfoot_external_neo.scp_ekl__ekl_hive_facility_dim LRH 
-ON Shipment.shipment_last_received_hub_id = LRH.facility_id
+-- LEFT OUTER JOIN bigfoot_external_neo.scp_ekl__ekl_hive_facility_dim LRH 
+-- ON Shipment.shipment_last_received_hub_id = LRH.facility_id
 
 
 LEFT OUTER JOIN 
