@@ -42,7 +42,13 @@ final_table.mri_source_location_dim_key,
 final_table.mri_destination_location_dim_key,
 final_table.ti_quantity,
 final_table.ti_inventory_item_id,
-final_table.ti_reservation_id as ti_reservation_id
+final_table.ti_reservation_id as ti_reservation_id,
+final_table.ti_product_id_key as ti_product_id_key,
+final_table.ti_grn_id,
+final_table.ti_grn_document_id,
+final_table.ti_grn_created_time,
+final_table.ti_grn_created_date_key,
+final_table.ti_grn_created_time_key
 from
 (
   select
@@ -88,9 +94,17 @@ lookupkey('warehouse_id',mr.`data`.warehouse_id) as mr_warehouse_dim_key,
 '' as mri_destination_location_dim_key,
 1 as ti_quantity,
 ti.`data`.inventory_item_id as ti_inventory_item_id,
-ti.`data`.reservation_id as ti_reservation_id
+ti.`data`.reservation_id as ti_reservation_id,
+ii.product_id_key as ti_product_id_key,
+grn.grn_id as ti_grn_id,
+grn.grn_document_id as ti_grn_document_id,
+grn.grn_created_at as ti_grn_created_time,
+grn.grn_created_date_key as ti_grn_created_date_key,
+grn.grn_created_time_key as ti_grn_created_time_key
 from bigfoot_snapshot.dart_fki_scp_warehouse_movementrequest_2_view mr left outer join
 bigfoot_snapshot.dart_fki_scp_warehouse_taskitem_2_view ti on ti.`data`.movement_request_id = mr.`data`.id 
+left join bigfoot_external_neo.scp_warehouse__fc_inventory_item_l0_hive_fact ii on ii.inventory_item_id = ti.`data`.inventory_item_id and ii.warehouse_company = 'fki'
+left join bigfoot_external_neo.scp_warehouse__fc_inbound_receiving_l0_hive_fact grn on grn.grn_id = ii.inventory_item_grn_id
 
 union all
 
@@ -137,7 +151,16 @@ lookupkey('warehouse_id',mr.`data`.warehouse_id) as mr_warehouse_dim_key,
 '' as mri_destination_location_dim_key,
 1 as ti_quantity,
 ti.`data`.inventory_item_id as ti_inventory_item_id,
-ti.`data`.reservation_id as ti_reservation_id
-from bigfoot_snapshot.dart_wsr_scp_warehouse_movementrequest_3_view mr left outer join
-bigfoot_snapshot.dart_wsr_scp_warehouse_taskitem_3_view ti on ti.`data`.movement_request_id = mr.`data`.id) final_table
+ti.`data`.reservation_id as ti_reservation_id,
+ii.product_id_key as ti_product_id_key,
+grn.grn_id as ti_grn_id,
+grn.grn_document_id as ti_grn_document_id,
+grn.grn_created_at as ti_grn_created_time,
+grn.grn_created_date_key as ti_grn_created_date_key,
+grn.grn_created_time_key as ti_grn_created_time_key
+from bigfoot_snapshot.dart_wsr_scp_warehouse_movementrequest_3_view mr 
+left join bigfoot_snapshot.dart_wsr_scp_warehouse_taskitem_3_view ti on ti.`data`.movement_request_id = mr.`data`.id
+left join bigfoot_external_neo.scp_warehouse__fc_inventory_item_l0_hive_fact ii on ii.inventory_item_id = ti.`data`.inventory_item_id and ii.warehouse_company = 'wsr'
+left join bigfoot_external_neo.scp_warehouse__fc_inbound_receiving_l0_hive_fact grn on grn.grn_id = ii.inventory_item_grn_id
+) final_table
 ;
