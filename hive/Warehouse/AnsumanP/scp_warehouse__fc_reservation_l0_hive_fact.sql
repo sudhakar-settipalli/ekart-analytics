@@ -52,7 +52,7 @@ pl.data.picklist_type as picklist_picking_zone,
 pl.data.updated_at as picklist_updated_timestamp,
 lookup_date(pl.data.updated_at) as picklist_updated_date_key,
 lookup_time(pl.data.updated_at) as picklist_updated_time_key,
-if(pl.data.picklist_type like 'cross%','cross_zone',pl.data.location_type) as picklist_location_type,
+if(lower(pl.data.picklist_type) like 'cross%','cross_zone',pl.data.location_type) as picklist_location_type,
 ---reservationevent
 re.reservation_max_in_ship_group_timestamp as reservation_max_in_ship_group_timestamp,
 lookup_date(re.reservation_max_in_ship_group_timestamp) as reservation_max_in_ship_group_date_key,
@@ -73,8 +73,11 @@ r.data.shipment_item_id as reservation_shipment_item_id,
 r.data.source_storage_location_id as reservation_source_storage_location_id,
 pli.data.entity_type as picklist_item_entity_type,
 pli.data.shipment_id as picklist_item_shipment_id,
-pl.data.entity_type as picklist_entity_type
-from bigfoot_snapshot.dart_wsr_scp_warehouse_reservation_5_view as r LEFT OUTER JOIN
+pl.data.entity_type as picklist_entity_type,
+lookupkey('storage_location_storage_id',concat(r.data.source_storage_location_id,'wsr')) as reservation_item_storage_location_key,
+lookupkey('storage_location_storage_id',concat(pli.data.suggested_location,'wsr')) as picklist_item_suggested_location_key
+from bigfoot_snapshot.dart_wsr_scp_warehouse_reservation_5_view as r 
+LEFT OUTER JOIN
 bigfoot_snapshot.dart_wsr_scp_warehouse_picklist_item_3_view as pli ON (r.data.reservation_id = pli.data.reservation_id 
 and (r.data.outbound_type=if(pli.data.entity_type='picklist_item','customer_reservation',
 if(pli.data.entity_type in ('TTL','wh_picklist_item'),'non_customer_reservation','undefined'))))
@@ -165,7 +168,9 @@ r2.data.shipment_item_id as reservation_shipment_item_id,
 r2.data.source_storage_location_id as reservation_source_storage_location_id,
 pli2.data.entity_type as picklist_item_entity_type,
 pli2.data.shipment_id as picklist_item_shipment_id,
-pl2.data.entity_type as picklist_entity_type
+pl2.data.entity_type as picklist_entity_type,
+lookupkey('storage_location_storage_id',concat(r2.data.source_storage_location_id,'fki')) as reservation_item_storage_location_key,
+lookupkey('storage_location_storage_id',concat(pli2.data.suggested_location,'fki')) as picklist_item_suggested_location_key
 from bigfoot_snapshot.dart_fki_scp_warehouse_reservation_6_view as r2 LEFT OUTER JOIN
 bigfoot_snapshot.dart_fki_scp_warehouse_picklist_item_2_view as pli2 ON (r2.data.reservation_id = pli2.data.reservation_id
 and (r2.data.outbound_type=if(pli2.data.entity_type='picklist_item','customer_reservation',
@@ -179,4 +184,4 @@ max(from_unixtime(cast(eventtime/1000 as bigint))) as reservation_max_in_ship_gr
 from bigfoot_journal.dart_fki_scp_warehouse_reservation_event_1 where day<#90#DAY# and data.status='in_ship_group'
 group by eventid )  re2 ON r2.entityid = re2.eventid
 where r2.data.outbound_type is not null
-;
+;2
