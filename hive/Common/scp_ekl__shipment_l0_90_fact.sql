@@ -42,8 +42,12 @@ SELECT /*+ MAPJOIN(FKL_MH,Rev_FKL_MH,geo_src,geo_dest) */
 																	,'TATA CLIQ'
 																	, IF(upper(s_current.vendor_tracking_id) LIKE'%ABO%'
 																		,'ADITYA BIRLA'
-																		, IF(upper(s_current.vendor_tracking_id) LIKE'%SHP%'
-																			,'SHOPPERSSTOP','FA'))))))))))))))
+																		, IF(upper(s_current.vendor_tracking_id) LIKE'%PLN%'
+																			,'PANTALOON'
+																			, IF(upper(s_current.vendor_tracking_id) LIKE'%ADI%'
+																				,'ADIDAS'
+																				, IF(upper(s_current.vendor_tracking_id) LIKE'%SHP%'
+																					,'SHOPPERSSTOP','FA'))))))))))))))))
 				)
 			, IF(lower(s_current.source_address_type) = 'mp_non_fbf_seller'
 				,'Non-FA'
@@ -76,10 +80,14 @@ SELECT /*+ MAPJOIN(FKL_MH,Rev_FKL_MH,geo_src,geo_dest) */
 																			,'TATA CLIQ'
 																			, IF(upper(s_current.vendor_tracking_id) LIKE'%ABO%'
 																				,'ADITYA BIRLA'
-																				, IF(upper(s_current.vendor_tracking_id) LIKE'%SHP%'
-																					,'SHOPPERSSTOP'
-																					, IF(lower(s_current.destination_address_type) = 'warehouse'
-																						,'FA','Non-FA')))))))))))))))
+																				, IF(upper(s_current.vendor_tracking_id) LIKE'%PLN%'
+																					,'PANTALOON'
+																					, IF(upper(s_current.vendor_tracking_id) LIKE'%SHP%'
+																						,'SHOPPERSSTOP'
+																						, IF(upper(s_current.vendor_tracking_id) LIKE'%ADI%'
+																							,'ADIDAS'
+																							, IF(lower(s_current.destination_address_type) = 'warehouse'
+																								,'FA','Non-FA')))))))))))))))))
 						)
 					,NULL)
 				)
@@ -103,8 +111,8 @@ SELECT /*+ MAPJOIN(FKL_MH,Rev_FKL_MH,geo_src,geo_dest) */
 		IF((upper(geo_src.src_lt) = upper(geo_dest.dest_lt) 
 				OR  upper(geo_src.src_city) = upper(geo_dest.dest_city)), "INTRACITY", IF(upper(geo_src.src_zone) = upper(geo_dest.dest_zone), "INTRAZONE", IF(upper(geo_src.src_zone) <> upper(geo_dest.dest_zone), "INTERZONE", "Missing"))) AS ekl_fin_zone,
 		IF((upper(geo_src.src_lt) = upper(geo_dest.dest_lt) 
-				OR  upper(geo_src.src_city) = upper(geo_dest.dest_city)), "LOCAL", IF(upper(geo_src.src_zone) = upper(geo_dest.dest_zone), "ZONAL", IF(upper(geo_src.src_city) IN ('CHENNAI','MUMBAI','NEW DELHI','KOLKATA','BANGALORE','HYDERABAD','AHMEDABAD','PUNE')
-				AND upper(geo_dest.dest_city) IN ('CHENNAI', 'MUMBAI', 'NEW DELHI', 'KOLKATA', 'BANGALORE', 'HYDERABAD', 'AHMEDABAD', 'PUNE') 
+				OR  upper(geo_src.src_city) = upper(geo_dest.dest_city)), "LOCAL", IF(upper(geo_src.src_zone) = upper(geo_dest.dest_zone), "ZONAL", IF(upper(geo_src.src_city) IN ('CHENNAI','MUMBAI','NEW DELHI','KOLKATA','BANGALORE','HYDERABAD','AHMEDABAD','PUNE','KOLKATTA')
+				AND upper(geo_dest.dest_city) IN ('CHENNAI', 'MUMBAI', 'NEW DELHI', 'KOLKATA', 'BANGALORE', 'HYDERABAD', 'AHMEDABAD', 'PUNE','KOLKATTA') 
 				AND geo_src.src_city <> geo_dest.dest_city, "METRO", IF(upper(geo_dest.dest_state) IN ('SIKKIM','ASSAM','MANIPUR','MEGHALAYA','MIZORAM','ARUNACHAL PRADESH','NAGALAND','TRIPURA','JAMMU AND KASHMIR'), "JK_NE", "ROI" ) ) ) ) AS ekart_lzn_flag,
 		IF(s_current.source_address_type LIKE'%NON_FBF%'
 			,0
@@ -188,18 +196,21 @@ SELECT /*+ MAPJOIN(FKL_MH,Rev_FKL_MH,geo_src,geo_dest) */
 		NULL AS first_dh_outscan_datetime,
 		NULL AS last_dh_outscan_datetime,
 		s_current.shipment_weight_updated_by   AS profiler_flag,
-		NULL AS profiled_hub_id,
+		s_group.profiler_facility.col5 AS profiled_hub_id,
 		s_current.dispatch_service_tier  AS shipment_dispatch_service_tier,
 		cast(s_current.dispatch_by_date AS timestamp)   AS shipment_dispatch_by_datetime,
-		lzn_cons.shipment_lzn_classification AS shipment_lzn_classification,
-		lzn_cons.shipment_transit_distance   AS shipment_transit_distance,
-		cast(lzn_cons.shipment_transit_time AS timestamp) AS shipment_transit_time,
+		lzn_cons.fulfill_item_unit_new_shipment_movement_type AS shipment_lzn_classification,
+		NULL   AS shipment_transit_distance,
+		NULL AS shipment_transit_time,
 		cast(reverse_complete_time AS timestamp)   AS reverse_complete_datetime,
 		cast(s_current.pickup_slot_start_date AS timestamp)   AS pickup_slot_start_datetime,
 		cast(s_current.pickup_slot_end_date AS timestamp)  AS pickup_slot_end_datetime,
 		S_group.rto_number_of_ofd_attempts as rto_num_ofd_attempts,
 		s_current.shipment_contour_volume as shipment_contour_volume,
-		s_current.mlo_datetime as mlo_datetime
+		s_current.mlo_datetime as mlo_datetime,
+		s_group.profiler_facility.col2 as profiled_length,
+		s_group.profiler_facility.col3 as profiled_breadth,
+		s_group.profiler_facility.col4 as profiled_height
 FROM  (
 			SELECT
 				entityid as entityid,
@@ -253,23 +264,24 @@ FROM  (
 					as timestamp) as mlo_datetime
 			FROM bigfoot_snapshot.dart_wsr_scp_ekl_shipment_4_view 
 			WHERE `data`.current_address.type <> 'BULK_HUB'
-			    AND `data`.source_address.id NOT IN (563,564,565,566,567,1280,1282,1288,1511,1757,1950,2043,3594,3612,3620,3621,3622,3623)
-				AND `data`.destination_address.id NOT IN (563,564,565,566,567,1280,1282,1288,1511,1757,1950,2043,3594,3612,3620,3621,3622,3623)
+			    AND `data`.source_address.id NOT IN (562,563,564,565,566,567,1280,1282,1288,1511,1757,1950,2043,3594,3612,3620,3621,3622,3623,20057,50862,51119,51488)
+				AND `data`.destination_address.id NOT IN (562,563,564,565,566,567,1280,1282,1288,1511,1757,1950,2043,3594,3612,3620,3621,3622,3623,20057,50862,51119,51488)
 		) s_current
 LEFT OUTER JOIN 
-                (  SELECT `data`.lzn_classification   AS shipment_lzn_classification,
-						  cast(`data`.transit_distance AS int) AS shipment_transit_distance,
-						  `data`.transit_time   AS shipment_transit_time, 
-						  `data`.source_pincode AS source_pincode, 
-						  `data`.destination_pincode  AS destination_pincode 
-                       FROM   bigfoot_journal.dart_fkint_scp_ekl_geo_classification_2
+                (	select 
+						cast(fulfill_item_unit_source_pincode as int) as fulfill_item_unit_source_pincode,
+						cast(fulfill_item_unit_destination_pincode as int) as fulfill_item_unit_destination_pincode,
+						min(fulfill_item_unit_granular_shipment_movement_type) as fulfill_item_unit_new_shipment_movement_type
+					from bigfoot_external_neo.scp_fulfillment__fulfillment_unit_hive_fact
+					group by cast(fulfill_item_unit_source_pincode as int),
+					cast(fulfill_item_unit_destination_pincode as int)
 				) lzn_cons
   ON    IF(s_current.shipment_type = 'rvp'
             ,s_current.destination_address_pincode
-			,s_current.source_address_pincode) = lzn_cons.source_pincode
+			,s_current.source_address_pincode) = lzn_cons.fulfill_item_unit_source_pincode
         AND IF(s_current.shipment_type = 'rvp'
 		        ,s_current.source_address_pincode
-				,s_current.destination_address_pincode) = lzn_cons.destination_pincode
+				,s_current.destination_address_pincode) = lzn_cons.fulfill_item_unit_destination_pincode
 LEFT OUTER JOIN bigfoot_common.ekl_fkl_facility_mother_hub_mapping fkl_mh 
   ON  s_current.source_address_id = fkl_mh.fkl_facility_id 
 LEFT OUTER JOIN bigfoot_common.ekl_fkl_facility_mother_hub_mapping rev_fkl_mh 
@@ -349,11 +361,12 @@ INNER JOIN
 						  sum(IF(`data`.status = 'PICKUP_Out_For_Pickup',1,0)) AS shipment_rvp_pk_number_of_attempts,
 						  min(IF(`data`.status = 'expected',updatedat,NULL))   AS received_at_source_facility,
 						  min(IF(`data`.status = 'Expected'  AND   `data`.current_address.type = 'DELIVERY_HUB',updatedat,NULL)) AS reverse_pickup_hub_time,
-						  min(IF(`data`.status = 'pickup_complete',updatedat,NULL))  AS received_at_origin_facility
+						  min(IF(`data`.status = 'pickup_complete',updatedat,NULL))  AS received_at_origin_facility,
+						  min(if (`data`.shipment_weight.updated_by in ('gor','pb'),struct(updatedat, data.shipment_weight.volumetric_details.length,data.shipment_weight.volumetric_details.breadth,data.shipment_weight.volumetric_details.height,`data`.current_address.id),null)) as profiler_facility
 					 FROM   bigfoot_journal.dart_wsr_scp_ekl_shipment_4 
 					 WHERE  day > date_format(date_sub(CURRENT_DATE,140),'yyyyMMdd') 
-					 	AND `data`.source_address.id NOT IN (563,564,565,566,567,1280,1282,1288,1511,1757,1950,2043,3594,3612,3620,3621,3622,3623)
-					    AND `data`.destination_address.id NOT IN (563,564,565,566,567,1280,1282,1288,1511,1757,1950,2043,3594,3612,3620,3621,3622,3623)
+					 	AND `data`.source_address.id NOT IN (562,563,564,565,566,567,1280,1282,1288,1511,1757,1950,2043,3594,3612,3620,3621,3622,3623,20057,50862,51119,51488)
+					    AND `data`.destination_address.id NOT IN (562,563,564,565,566,567,1280,1282,1288,1511,1757,1950,2043,3594,3612,3620,3621,3622,3623,20057,50862,51119,51488)
 						AND `data`.current_address.type <> 'BULK_HUB'
 					 GROUP BY entityid 
 			) s_group 
