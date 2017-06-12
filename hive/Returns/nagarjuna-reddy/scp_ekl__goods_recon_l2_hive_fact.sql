@@ -71,7 +71,8 @@ grn.return_numdate,
 grn.return_numdate_key,
 if(grn.return_customer_will_send=TRUE,1,0) as return_customer_will_return,
 grn.action_override_count,
-if(grn.return_amount is null,grn.order_item_selling_price,substr(grn.return_amount,1,length(grn.return_amount)-2)) as return_item_value
+if(grn.return_amount is null,grn.order_item_selling_price,substr(grn.return_amount,1,length(grn.return_amount)-2)) as return_item_value,
+if(si.shipment_original_shipment_id is null,1,0) as reinventorized_shipment_flag
 from
 (
 select
