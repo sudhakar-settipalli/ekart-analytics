@@ -86,6 +86,7 @@ psn1.number1 as number1,
 psn1.number2 as number2,
 psn1.number3 as number3,
 psn1.imei_mapping_present_flag as imei_mapping_present_flag,
+breach_final.marketplace_id as marketplace_id,
 breach_final.fulfill_item_unit_dispatch_by_date_key
 from
 (select breach_ft.fulfill_item_unit_id,
@@ -164,6 +165,7 @@ and (unix_timestamp(breach_ft.fulfill_item_unit_dispatch_by_cutoff) - unix_times
 breach_ft.is_yesterday,
 breach_ft.shipment_merchant_reference_id,
 breach_ft.order_item_is_freebie as order_item_is_freebie,
+breach_ft.marketplace_id as marketplace_id,
 breach_ft.shipment_item_quantity as shipment_item_quantity,
 if(breach_ft.is_breach_new = 0 and breach_ft.dispatched_timestamp <= breach_ft.dbd_from_reservation,1,0) as is_met_new,
 if(breach_ft.is_breach_new=1 and (unix_timestamp(breach_ft.dbd_from_reservation) - unix_timestamp(breach_ft.reservation_created_timestamp)) <9000,if(breach_ft.reservation_quantity>0,1,0),0) as is_fulfillment_breach_new,
@@ -187,12 +189,12 @@ fiu_new.fulfill_item_sales_channel as sales_channel,
 fiu_new.fulfill_reference_id as fulfill_reference_id,
 fiu_new.fulfill_item_unit_status_modified as fiu_status,
 fiu_new.warehouse_order_item_id as warehouse_order_item_id,
-if(fiu_temp.fulfill_item_unit_dispatch_by_cutoff >= concat(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 1),' 07:00:00')
-and fiu_temp.fulfill_item_unit_dispatch_by_cutoff <= concat(to_date(from_unixtime(unix_timestamp())),' 07:00:00'),1,0) as is_yesterday,
+if(fiu_temp.fulfill_item_unit_dispatch_by_cutoff >= concat(date_sub(current_timestamp(), 1),' 07:00:00')
+and fiu_temp.fulfill_item_unit_dispatch_by_cutoff <= concat(to_date(current_timestamp()),' 07:00:00'),1,0) as is_yesterday,
 fiu_new.shipment_merchant_reference_id, 
 oms.order_item_un_hold_max_date_key as unhold_date,
 oms.order_item_un_hold_max_time_key as unhold_time,
-concat(substr(oms.order_item_un_hold_max_date_key,1,4),"-",substr(oms.order_item_un_hold_max_date_key,5,2),"-",substr(oms.order_item_un_hold_max_date_key,7,2)," ",(CASE WHEN oms.order_item_un_hold_max_time_key < 60 THEN concat("00",":",CAST(oms.order_item_un_hold_max_time_key AS STRING)) WHEN oms.order_item_un_hold_max_time_key < 960 THEN concat(SUBSTR(CAST(oms.order_item_un_hold_max_time_key AS STRING),1,1),':',SUBSTR(CAST(oms.order_item_un_hold_max_time_key AS STRING),2,2)) ELSE concat(SUBSTR(CAST(oms.order_item_un_hold_max_time_key AS STRING),1,2),':',SUBSTR(CAST(oms.order_item_un_hold_max_time_key AS STRING),3,2)) END)) as order_item_un_hold_timestamp,
+concat(substr(oms.order_item_un_hold_max_date_key,1,4),"-",substr(oms.order_item_un_hold_max_date_key,5,2),"-",substr(oms.order_item_un_hold_max_date_key,7,2)," ",(CASE WHEN oms.order_item_un_hold_max_time_key < 60 THEN concat("00",":",CAST(oms.order_item_un_hold_max_time_key AS STRING)) WHEN oms.order_item_un_hold_max_time_key < 960 THEN concat(SUBSTR(CAST(oms.order_item_un_hold_max_time_key AS STRING),1,1),':',SUBSTR(CAST(oms.order_item_un_hold_max_time_key AS STRING),2,2)) ELSE concat(SUBSTR(CAST(oms.order_item_un_hold_max_time_key AS STRING),1,2),':',SUBSTR(CAST(oms.order_item_un_hold_max_time_key AS STRING),3,2)) END),':00') as order_item_un_hold_timestamp,
 oms.order_item_unit_is_on_hold as is_on_hold,
 oms.order_status as order_status,
 oms.order_external_id as order_external_id,
@@ -245,6 +247,7 @@ if(if(ship.shipment_dispatched_timestamp is null,fiu_new.fulfill_item_unit_dispa
 as is_breach_new,
 lookupkey('warehouse_id',res.reservation_warehouse_id) as warehouse_dim_key,
 oms.order_item_is_freebie as order_item_is_freebie,
+oms.marketplace_id as marketplace_id,
 ship.shipment_item_quantity as shipment_item_quantity,
 res1.reservation_inventory_item_id as reservation_inventory_item_id,
 res.reservation_id as reservation_id
@@ -278,7 +281,7 @@ left join
 bigfoot_external_neo.scp_warehouse__fc_fulfillment_item_unit_mapping_hive_fact as fiu_new
 on fiu_temp.fulfill_item_unit_id = fiu_new.fulfill_item_unit_id
 left join
-(select distinct order_item_id,order_item_unit_shipment_id,order_item_un_hold_max_date_key,order_item_un_hold_max_time_key,order_item_unit_is_on_hold,order_status,order_item_approve_date_time,order_external_id,order_item_created_at,order_item_is_freebie from bigfoot_external_neo.scp_oms__order_item_unit_s1_fact) oms
+(select distinct order_item_id,order_item_unit_shipment_id,order_item_un_hold_max_date_key,order_item_un_hold_max_time_key,order_item_unit_is_on_hold,order_status,order_item_approve_date_time,order_external_id,order_item_created_at,order_item_is_freebie,marketplace_id from bigfoot_external_neo.scp_oms__order_item_unit_s1_fact) oms
 on fiu_new.customer_order_item_id = oms.order_item_id and oms.order_item_unit_shipment_id <=> fiu_new.shipment_merchant_reference_id
 left join bigfoot_external_neo.scp_warehouse__fc_reservation_l0_hive_fact as res
 on ( fiu_new.fulfill_reference_id = res.reservation_fulfill_reference_id and res.reservation_inv_source_type  <> 'non_fki' and 
@@ -303,4 +306,4 @@ concat_ws(',',collect_set(psn.number3)) as number3,
 1 as imei_mapping_present_flag
 from bigfoot_external_neo.scp_warehouse__fc_product_serial_number_map_l0_hive_fact psn
 group by psn.inventory_item_id
-) psn1 on (breach_final.reservation_inventory_item_id=psn1.inventory_item_id);
+) psn1 on (breach_final.reservation_inventory_item_id=psn1.inventory_item_id)
