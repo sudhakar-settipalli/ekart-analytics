@@ -358,8 +358,12 @@ nco1.outbound_request_consignment_id as consignment_id,
 nco1.outbound_request_company as consignment_company,
 nco1.outbound_request_item_product_key as product_key,
 sum( nco1.outbound_request_item_quantity ) as consignment_quantity,
-max( nco1.consignment_item_quantity_lost_during_dispatch ) as consignment_quantity_lost_during_dispatch,
-max( nco1.consignment_item_quantity_packed ) as consignment_packed_quantity
+--max( nco1.consignment_item_quantity_lost_during_dispatch ) as consignment_quantity_lost_during_dispatch,
+sum(CASE WHEN nco1.consignment_item_polymorphic_type = 'wsn' THEN nco1.consignment_item_quantity_lost_during_dispatch ELSE 0 END) +
+sum(DISTINCT CASE WHEN nco1.consignment_item_polymorphic_type = 'wid' THEN nco1.consignment_item_quantity_lost_during_dispatch ELSE 0 END) as consignment_quantity_lost_during_dispatch,
+--max( case when nco1.consignment_item_quantity_packed ) as consignment_packed_quantity
+sum(CASE WHEN nco1.consignment_item_polymorphic_type = 'wsn' THEN nco1.consignment_item_quantity_packed ELSE 0 END) +
+sum(DISTINCT CASE WHEN nco1.consignment_item_polymorphic_type = 'wid' THEN nco1.consignment_item_quantity_packed ELSE 0 END) as consignment_packed_quantity
 from
 bigfoot_external_neo.scp_warehouse__fc_non_cust_outbound_l1_hive_fact nco1
 where
@@ -405,4 +409,4 @@ and ci.product_key = ob.ob_product_key
 left join bigfoot_common.fc_pnl_iwit_cost_mapping tat 
 on ob.outbound_request_warehouse_id = tat.source 
 and ob.outbound_request_destination_party_id = tat.destination
-and tat.month = '201706'
+and tat.month = '201706';
