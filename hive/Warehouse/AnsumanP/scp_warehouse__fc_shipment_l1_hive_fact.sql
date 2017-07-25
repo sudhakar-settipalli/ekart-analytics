@@ -196,13 +196,21 @@ or (shipment_packing_box_suggested_name like 'M4%' and packing_box_used_outer_na
 or (shipment_packing_box_suggested_name like 'M5%' and packing_box_used_outer_name='M5')
 ) )
 then 1
+when is_mobile_tablet_category = 1 
+and packing_box_used_outer_name=packing_box_suggested_outer_name
+and packing_box_used_outer_name regexp 'A[0-9]'
+then 1
 else 0
 end
 )
 *is_outer_packing_box_suggested*is_outer_suggested_packing_box_valid*
 is_outer_packing_box_used*is_outer_used_packing_box_valid as is_exact_adhered_outer,
 (
-Case 
+Case
+when  is_mobile_tablet_category = 1 
+and packing_box_used_outer_name=packing_box_suggested_outer_name
+and packing_box_used_outer_name regexp 'A[0-9]'
+then 0
 when (is_mobile_tablet_category=1 and warehouse_id<>'chn_puzhal_01' and (packing_box_used_outer_name=packing_box_suggested_outer_name or 
 ((shipment_packing_box_suggested_name in ('B0','B35') or shipment_packing_box_suggested_name like 'M%') AND (packing_box_used_outer_name='SW'))
 )
@@ -219,15 +227,10 @@ or (shipment_packing_box_suggested_name like 'M5%' and packing_box_used_outer_na
 )
 )  
 )
-or
-(
-is_mobile_tablet_category = 1 and packing_box_used_outer_name in ('A1','A2','A3') 
-and packing_box_used_outer_name = shipment_packing_box_suggested_name
-)
 then 1
 else 0
 end
-)  as is_mobile_adherence_outer,
+) as is_mobile_adherence_outer,
 if(
 (
 Case when packing_box_suggested_outer_bucket=packing_box_used_outer_bucket 
