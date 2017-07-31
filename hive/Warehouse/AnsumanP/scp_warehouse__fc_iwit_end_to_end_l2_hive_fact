@@ -169,7 +169,35 @@ sg_status_completed_time_key,
 sg_status_cancelled_at,
 sg_status_cancelled_date_key,
 sg_status_cancelled_time_key,
-tat.threepl_tat as threepl_tat
+tat.threepl_tat as threepl_tat,
+ic.str_id,
+ic.str_created_date,
+lookup_date(ic.str_created_date) as str_created_date_key, 
+lookup_time(ic.str_created_date) as str_created_time_key,
+ic.stn_id,
+ic.stn_created_date,
+lookup_date(ic.stn_created_date) as stn_created_date_key, 
+lookup_time(ic.stn_created_date) as stn_created_time_key,
+ic.srn_id,
+ic.srn_created_date,
+lookup_date(ic.srn_created_date) as srn_created_date_key, 
+lookup_time(srn_created_date) as srn_createdtime_key,
+ic.sro_id,
+ic.sro_created_date,
+lookup_date(ic.sro_created_date) as sro_created_date_key, 
+lookup_time(ic.sro_created_date) as sro_created_time_key,
+ic.fsn,
+ic.source_warehouse,
+ic.destination_warehouse,
+ic.source_warehouse_area,
+ic.destination_warehouse_area,
+ic.requested_quantity,
+ic.available_quantity,
+ic.dispatched_quantity,
+ic.lost_quantity,
+ic.accepted_quantity,
+ic.rejected_quantity,
+ic.mrp
 from
 (select 
 nco.outbound_request_consignment_id as consignment_id,
@@ -184,6 +212,7 @@ nco.ta_vendor_name as ta_vendor_name,
 nco.ta_tracking_id as ta_tracking_id,
 nco.ta_warehouse_id as ta_warehouse_id,
 nco.outbound_request_item_product_key as ob_product_key,
+pd.product_detail_fsn as ob_fsn,
 nco.outbound_request_warehouse_dim_key as source_warehouse_dim_key,
 nco.outbound_request_destination_warehouse_dim_key as destination_warehouse_dim_key,
 outbound_request_warehouse_id,
@@ -325,6 +354,7 @@ max(nco.sg_status_cancelled_at) as sg_status_cancelled_at,
 max(nco.sg_status_cancelled_date_key) as sg_status_cancelled_date_key,
 max(nco.sg_status_cancelled_time_key) as sg_status_cancelled_time_key
 from bigfoot_external_neo.scp_warehouse__fc_non_cust_outbound_l1_hive_fact nco
+left join bigfoot_external_neo.scp_warehouse__fc_product_detail_hive_dim pd on pd.fc_product_detail_hive_dim_key = nco.outbound_request_item_product_key
 where
 nco.outbound_request_type = 'iwit'
 and nco.outbound_request_status <> 'cancelled'
@@ -341,6 +371,7 @@ nco.ta_tracking_id,
 nco.ta_warehouse_id,
 nco.outbound_request_company,
 nco.outbound_request_item_product_key,
+pd.product_detail_fsn,
 nco.outbound_request_destination_warehouse_dim_key,
 outbound_request_warehouse_dim_key,
 outbound_request_warehouse_id,
@@ -409,4 +440,7 @@ and ci.product_key = ob.ob_product_key
 left join bigfoot_common.fc_pnl_iwit_cost_mapping tat 
 on ob.outbound_request_warehouse_id = tat.source 
 and ob.outbound_request_destination_party_id = tat.destination
-and tat.month = '201706';
+and tat.month = '201706'
+left join bigfoot_external_neo.retail_procurement__iwit_core_fact ic
+on ic.stn_id = ob.outbound_request_external_id
+and ic.fsn = ob.ob_fsn
