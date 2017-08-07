@@ -57,7 +57,8 @@ final.product_detail_lbh_updated_by as product_detail_lbh_updated_by ,
 final.is_first_party_seller as is_first_party_seller ,
 final.product_attribute_importance_type as product_attribute_importance_type,
 final.product_attribute_core_flag as product_attribute_core_flag,
-final.lbh_suspected as lbh_suspected
+final.lbh_suspected as lbh_suspected,
+final.asp_type as asp_type
 from
 (
 SELECT 
@@ -80,7 +81,7 @@ if(pd.`data`.is_large=TRUE,1,0)  as product_detail_is_large,
 if(pd.`data`.is_medium=TRUE,1,0)  as product_detail_is_medium,
 if(pd.`data`.is_serializable=TRUE,1,0) as product_detail_is_serializable,
 pd.`data`.length as product_detail_length,
-pd.`data`.listing_id as product_detail_listing_id,
+plhv.listing_id as product_detail_listing_id,
 pd.`data`.packing_type_id as product_detail_packing_type_id,
 pd.`data`.price as product_detail_price,
 pd.`data`.product_title as product_detail_product_title,
@@ -135,7 +136,8 @@ end
 ) as is_first_party_seller,
 pahd.importance_type as product_attribute_importance_type,
 pahd.core_flag as product_attribute_core_flag,
-pd.`data`.lbh_suspected as lbh_suspected
+pd.`data`.lbh_suspected as lbh_suspected,
+pc.asp_type as asp_type
 from 
 bigfoot_snapshot.dart_fki_scp_warehouse_product_detail_2_view_total pd
 left join 
@@ -161,9 +163,11 @@ bigfoot_external_neo.sp_seller__seller_hive_dim shd1
 group by shd1.seller_id
 ) shd
 on pd.`data`.seller_id=shd.seller_id
-left join bigfoot_external_neo.sp_product__listing_hive_dim plhv on pd.`data`.listing_id=plhv.listing_id
+left join bigfoot_external_neo.sp_product__listing_hive_dim plhv 
+on pd.`data`.fsn = plhv.product_id and pd.`data`.sku = plhv.seller_sku_id and pd.`data`.seller_id = plhv.seller_id
 left join bigfoot_external_neo.sp_product__product_attribute_hive_dim pahd on pd.`data`.fsn=pahd.product_id	
 left join bigfoot_external_neo.scp_warehouse__fc_single_shipment_product_vol_l2_hive_fact sspv on pd.`data`.fsn=sspv.product_detail_fsn
+left join bigfoot_external_neo.sp_product__product_categorization_hive_dim pc on pc.product_id = pd.`data`.fsn
 left join 
 (
 select
@@ -253,7 +257,8 @@ end
 ) as is_first_party_seller,
 pahd.importance_type as product_attribute_importance_type,
 pahd.core_flag as product_attribute_core_flag,
-pd.`data`.lbh_suspected as lbh_suspected
+pd.`data`.lbh_suspected as lbh_suspected,
+pc.asp_type as asp_type
 from 
 bigfoot_snapshot.dart_wsr_scp_warehouse_product_detail_3_view_total pd
 left join 
@@ -282,6 +287,7 @@ group by shd1.seller_id
 left join bigfoot_external_neo.sp_product__listing_hive_dim plhv on pd.`data`.listing_id=plhv.listing_id
 left join bigfoot_external_neo.sp_product__product_attribute_hive_dim pahd on pd.`data`.fsn=pahd.product_id	
 left join bigfoot_external_neo.scp_warehouse__fc_single_shipment_product_vol_l2_hive_fact sspv on pd.`data`.fsn=sspv.product_detail_fsn
+left join bigfoot_external_neo.sp_product__product_categorization_hive_dim pc on pc.product_id = pd.`data`.fsn
 left join 
 (
 select
